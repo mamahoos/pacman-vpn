@@ -46,6 +46,13 @@ services:
       - "traefik.http.routers.xui.entrypoints=websecure"
       - "traefik.http.routers.xui.tls=true"
 
+      # Edge/CDN router for VLESS+WS
+      - "traefik.http.routers.edge.rule=Host(`edge.mamahoos.ir`)"
+      - "traefik.http.routers.edge.entrypoints=websecure"
+      - "traefik.http.routers.edge.tls=true"
+      - "traefik.http.routers.edge.service=edge-svc"
+      - "traefik.http.services.edge-svc.loadbalancer.server.port=10086"
+
       # XUI internal web server
       - "traefik.http.services.xui.loadbalancer.server.port=${XUI_PORT}"
 

@@ -1,55 +1,61 @@
 services:
   xui:
-    image: ${XUI_IMAGE:-ghcr.io/mhsanaei/3x-ui}:${XUI_VERSION:-v3.2.6}
+    image: ghcr.io/mhsanaei/3x-ui:${XUI_VERSION}
 
     container_name: xui
 
     restart: unless-stopped
 
+    environment:
+      TZ: ${TZ}
+
+      # Panel
+      XUI_PORT: ${XUI_PORT}
+      XUI_INIT_WEB_BASE_PATH: ${XUI_BASE_PATH}
+
+      # Database
+      XUI_DB_TYPE: ${XUI_DB_TYPE}
+      XUI_DB_DSN: >-
+        postgres://${XUI_DB_USER}:${XUI_DB_PASSWORD}@${XUI_DB_HOST}:${XUI_DB_PORT}/${XUI_DB_NAME}?sslmode=disable
+
+      # Security / runtime
+      XUI_ENABLE_FAIL2BAN: "true"
+      XUI_DEBUG: "false"
+      XUI_LOG_LEVEL: info
+
     cap_add:
       - NET_ADMIN
       - NET_RAW
 
-    environment:
-      TZ: ${TZ:-UTC}
-      XRAY_VMESS_AEAD_FORCED: "false"
-      XUI_ENABLE_FAIL2BAN: "true"
+    security_opt:
+      - no-new-privileges:true
 
     volumes:
       - ./data/x-ui:/etc/x-ui
-      - ./data/cert:/root/cert
 
     networks:
       - infra_proxy_net
+      - infra_db_net
 
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=infra_proxy_net"
 
-      # --------------------------------------------------
-      # X-UI Web Panel
-      # --------------------------------------------------
-
-      - "traefik.http.routers.xui.rule=Host(`${XUI_DOMAIN}`)"
+      # Router
+      - "traefik.http.routers.xui.rule=Host(`${XUI_DOMAIN}`) && PathPrefix(`${XUI_BASE_PATH}`)"
       - "traefik.http.routers.xui.entrypoints=websecure"
       - "traefik.http.routers.xui.tls=true"
 
-      - "traefik.http.services.xui.loadbalancer.server.port=${XUI_PANEL_PORT:-2053}"
+      # XUI internal web server
+      - "traefik.http.services.xui.loadbalancer.server.port=${XUI_PORT}"
 
-      # --------------------------------------------------
       # Security headers
-      # --------------------------------------------------
-
       - "traefik.http.middlewares.xui-security.headers.stsSeconds=31536000"
       - "traefik.http.middlewares.xui-security.headers.stsIncludeSubdomains=true"
-      - "traefik.http.middlewares.xui-security.headers.stsPreload=true"
       - "traefik.http.middlewares.xui-security.headers.contentTypeNosniff=true"
       - "traefik.http.middlewares.xui-security.headers.frameDeny=true"
 
       - "traefik.http.routers.xui.middlewares=xui-security"
-
-    security_opt:
-      - no-new-privileges:true
 
     logging:
       driver: json-file
@@ -57,6 +63,10 @@ services:
         max-size: "10m"
         max-file: "5"
 
+
 networks:
   infra_proxy_net:
+    external: true
+
+  infra_db_net:
     external: true

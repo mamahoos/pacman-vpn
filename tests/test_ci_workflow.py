@@ -25,6 +25,7 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertIn("fetch-depth: 0", workflow)
         self.assertIn("uses: gitleaks/gitleaks-action@v3", workflow)
         self.assertIn("GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}", workflow)
+        self.assertIn("pull-requests: read", workflow)
         self.assertNotIn("curl", workflow)
 
     def test_cloudflare_checks_dns_not_pages(self):

@@ -79,7 +79,10 @@ def _request_json(url: str, token: str) -> dict[str, Any]:
             payload = json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")
-        raise SystemExit(f"cloudflare API HTTP {exc.code}: {body[:300]}") from exc
+        hint = ""
+        if exc.code in {401, 403}:
+            hint = "; token needs Zone.DNS Read and Zone Settings Read on this zone"
+        raise SystemExit(f"cloudflare API HTTP {exc.code}{hint}: {body[:300]}") from exc
     if not isinstance(payload, dict) or not payload.get("success"):
         raise SystemExit(f"cloudflare API error: {payload}")
     return payload

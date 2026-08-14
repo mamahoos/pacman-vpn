@@ -6,15 +6,18 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from typing import Any
 
 API_BASE = "https://api.cloudflare.com/client/v4"
 RECORD_TYPES = {"A", "AAAA", "CNAME"}
 OK_SSL = {"full", "strict"}
 OK_EDGE_STATUS = {400, 426}
+RETRYABLE_SMOKE_MARKERS = ("HTTP 502", "HTTP 503", "HTTP 504")
 
 
 def require_env(name: str) -> str:
@@ -70,6 +73,50 @@ def evaluate_smoke(panel_status: int, edge_status: int) -> list[str]:
     if edge_status not in OK_EDGE_STATUS:
         errors.append(f"edge HTTP {edge_status}, expected 400 or 426 websocket")
     return errors
+
+
+def is_retryable(errors: list[str]) -> bool:
+    if not errors:
+        return False
+    return all(
+        any(marker in error for marker in RETRYABLE_SMOKE_MARKERS) for error in errors
+    )
+
+
+def retry_until_ok(
+    run_once: Callable[[], list[str]],
+    *,
+    attempts: int,
+    delay_seconds: float,
+    sleep: Callable[[float], None] = time.sleep,
+) -> list[str]:
+    last: list[str] = []
+    total = max(1, attempts)
+    for attempt in range(1, total + 1):
+        last = run_once()
+        if not last:
+            return []
+        if attempt >= total or not is_retryable(last):
+            return last
+        print(
+            f"transient health failure (attempt {attempt}/{total}); retrying in {delay_seconds}s",
+            file=sys.stderr,
+        )
+        sleep(delay_seconds)
+    return last
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise SystemExit(f"invalid {name}={raw!r}") from None
+    if value < 1:
+        raise SystemExit(f"invalid {name}={raw!r}")
+    return value
 
 
 def _request_json(url: str, token: str, allow_forbidden: bool = False) -> dict[str, Any] | None:
@@ -146,18 +193,27 @@ def main() -> int:
     ws_path = os.environ.get("INBOUND_WS_PATH", "/chat/sync").strip() or "/chat/sync"
     panel_path = os.environ.get("XUI_BASE_PATH", "").strip()
     skip_smoke = os.environ.get("SKIP_SMOKE", "").strip() in {"1", "true", "yes"}
+    attempts = _env_int("SMOKE_ATTEMPTS", 1)
+    delay_seconds = _env_int("SMOKE_DELAY_SECONDS", 10)
 
-    records = fetch_dns_records(zone_id, token, [panel_host, edge_host])
-    errors = evaluate_hosts(records, panel_host, edge_host)
-    errors.extend(ssl_errors(fetch_ssl_mode(zone_id, token)))
+    def run_once() -> list[str]:
+        records = fetch_dns_records(zone_id, token, [panel_host, edge_host])
+        errors = evaluate_hosts(records, panel_host, edge_host)
+        errors.extend(ssl_errors(fetch_ssl_mode(zone_id, token)))
+        if skip_smoke or not panel_path:
+            if not skip_smoke and not panel_path:
+                print("skipping smoke: missing env XUI_BASE_PATH")
+        else:
+            panel_url = f"https://{panel_host}{panel_path}"
+            edge_url = f"https://{edge_host}{ws_path}"
+            errors.extend(evaluate_smoke(http_status(panel_url), http_status(edge_url)))
+        return errors
 
-    if skip_smoke or not panel_path:
-        if not skip_smoke and not panel_path:
-            print("skipping smoke: missing env XUI_BASE_PATH")
-    else:
-        panel_url = f"https://{panel_host}{panel_path}"
-        edge_url = f"https://{edge_host}{ws_path}"
-        errors.extend(evaluate_smoke(http_status(panel_url), http_status(edge_url)))
+    errors = retry_until_ok(
+        run_once,
+        attempts=attempts,
+        delay_seconds=delay_seconds,
+    )
 
     if errors:
         print("cloudflare check failed:", file=sys.stderr)

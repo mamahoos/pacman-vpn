@@ -106,6 +106,8 @@ jobs:
           EDGE_DOMAIN: ${{ vars.EDGE_DOMAIN }}
           XUI_BASE_PATH: ${{ secrets.XUI_BASE_PATH }}
           INBOUND_WS_PATH: ${{ vars.INBOUND_WS_PATH }}
+          SMOKE_ATTEMPTS: "8"
+          SMOKE_DELAY_SECONDS: "10"
         run: python3 scripts/check_cloudflare.py
 
       - name: Restore backup after failed health

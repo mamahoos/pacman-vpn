@@ -57,6 +57,47 @@ class CloudflareCheckTests(unittest.TestCase):
         self.assertTrue(cf.evaluate_smoke(panel_status=502, edge_status=400))
         self.assertTrue(cf.evaluate_smoke(panel_status=200, edge_status=200))
 
+    def test_retry_until_ok_retries_gateway_then_passes(self):
+        calls = {"n": 0}
+
+        def run_once() -> list[str]:
+            calls["n"] += 1
+            if calls["n"] < 3:
+                return [
+                    "panel HTTP 502, expected 200",
+                    "edge HTTP 502, expected 400 or 426 websocket",
+                ]
+            return []
+
+        slept: list[float] = []
+        errors = cf.retry_until_ok(
+            run_once,
+            attempts=6,
+            delay_seconds=10,
+            sleep=slept.append,
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(calls["n"], 3)
+        self.assertEqual(slept, [10, 10])
+
+    def test_retry_until_ok_does_not_retry_permanent_errors(self):
+        calls = {"n": 0}
+
+        def run_once() -> list[str]:
+            calls["n"] += 1
+            return ["missing proxied A/AAAA/CNAME for admin.example.com"]
+
+        slept: list[float] = []
+        errors = cf.retry_until_ok(
+            run_once,
+            attempts=6,
+            delay_seconds=10,
+            sleep=slept.append,
+        )
+        self.assertTrue(errors)
+        self.assertEqual(calls["n"], 1)
+        self.assertEqual(slept, [])
+
 
 if __name__ == "__main__":
     unittest.main()

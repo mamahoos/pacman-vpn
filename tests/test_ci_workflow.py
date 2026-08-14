@@ -50,6 +50,8 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertIn(".deploy-backup", workflow)
         self.assertIn("scripts/check_cloudflare.py", workflow)
         self.assertIn("DEPLOY_SSH_KEY", workflow)
+        self.assertIn("if [ -f scripts/check_cloudflare.py ]", workflow)
+        self.assertNotIn("script_stop", workflow)
         self.assertNotIn(".env", workflow)
         self.assertNotIn("config/clients.json", workflow)
         self.assertNotIn("wrangler", workflow)

@@ -55,17 +55,16 @@ jobs:
           key: ${{ env.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
           envs: DEPLOY_PATH
-          script_stop: true
           script: |
             set -eu
             cd "$DEPLOY_PATH"
             rm -rf .deploy-backup
             mkdir -p .deploy-backup/config .deploy-backup/scripts
             cp -a compose.yaml .deploy-backup/compose.yaml
-            [ -f config/host.json ] && cp -a config/host.json .deploy-backup/config/host.json
-            [ -f config/xray.json ] && cp -a config/xray.json .deploy-backup/config/xray.json
-            [ -f scripts/seed_pasarguard.py ] && cp -a scripts/seed_pasarguard.py .deploy-backup/scripts/seed_pasarguard.py
-            [ -f scripts/check_cloudflare.py ] && cp -a scripts/check_cloudflare.py .deploy-backup/scripts/check_cloudflare.py
+            if [ -f config/host.json ]; then cp -a config/host.json .deploy-backup/config/host.json; fi
+            if [ -f config/xray.json ]; then cp -a config/xray.json .deploy-backup/config/xray.json; fi
+            if [ -f scripts/seed_pasarguard.py ]; then cp -a scripts/seed_pasarguard.py .deploy-backup/scripts/seed_pasarguard.py; fi
+            if [ -f scripts/check_cloudflare.py ]; then cp -a scripts/check_cloudflare.py .deploy-backup/scripts/check_cloudflare.py; fi
 
       - name: Copy stack files
         uses: appleboy/scp-action@v1
@@ -86,7 +85,6 @@ jobs:
           key: ${{ env.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
           envs: DEPLOY_PATH
-          script_stop: true
           script: |
             set -eu
             cd "$DEPLOY_PATH"
@@ -119,15 +117,14 @@ jobs:
           key: ${{ env.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
           envs: DEPLOY_PATH
-          script_stop: true
           script: |
             set -eu
             cd "$DEPLOY_PATH"
             cp -a .deploy-backup/compose.yaml compose.yaml
-            [ -f .deploy-backup/config/host.json ] && cp -a .deploy-backup/config/host.json config/host.json
-            [ -f .deploy-backup/config/xray.json ] && cp -a .deploy-backup/config/xray.json config/xray.json
-            [ -f .deploy-backup/scripts/seed_pasarguard.py ] && cp -a .deploy-backup/scripts/seed_pasarguard.py scripts/seed_pasarguard.py
-            [ -f .deploy-backup/scripts/check_cloudflare.py ] && cp -a .deploy-backup/scripts/check_cloudflare.py scripts/check_cloudflare.py
+            if [ -f .deploy-backup/config/host.json ]; then cp -a .deploy-backup/config/host.json config/host.json; fi
+            if [ -f .deploy-backup/config/xray.json ]; then cp -a .deploy-backup/config/xray.json config/xray.json; fi
+            if [ -f .deploy-backup/scripts/seed_pasarguard.py ]; then cp -a .deploy-backup/scripts/seed_pasarguard.py scripts/seed_pasarguard.py; fi
+            if [ -f .deploy-backup/scripts/check_cloudflare.py ]; then cp -a .deploy-backup/scripts/check_cloudflare.py scripts/check_cloudflare.py; fi
             docker compose up -d
 
       - name: Fail job after rollback

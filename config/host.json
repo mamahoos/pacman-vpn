@@ -1,0 +1,13 @@
+{
+  "remark": "edge ({USERNAME})",
+  "address": ["edge.example.com"],
+  "inbound_tag": "VLESS_WS",
+  "port": 443,
+  "sni": ["edge.example.com"],
+  "host": ["edge.example.com"],
+  "path": "/chat/sync",
+  "security": "tls",
+  "fingerprint": "chrome",
+  "priority": 1,
+  "is_disabled": false
+}

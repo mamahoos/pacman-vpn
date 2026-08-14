@@ -1,80 +1,93 @@
 services:
-  xui:
-    image: ghcr.io/mhsanaei/3x-ui:${XUI_VERSION}
-
-    container_name: xui
-
+  panel:
+    image: ghcr.io/pasarguard/panel:v5.2.1
+    container_name: pasarguard
     restart: unless-stopped
-
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        UVICORN_HOST=$$(hostname -I | tr ' ' '\n' | grep '^172.22.' | head -n1)
+        export UVICORN_HOST
+        exec /code/start.sh
     environment:
       TZ: ${TZ}
-
-      # Panel
-      XUI_PORT: ${XUI_PORT}
-      XUI_INIT_WEB_BASE_PATH: ${XUI_BASE_PATH}
-
-      # Database
-      XUI_DB_TYPE: ${XUI_DB_TYPE}
-      XUI_DB_DSN: >-
-        postgres://${XUI_DB_USER}:${XUI_DB_PASSWORD}@${XUI_DB_HOST}:${XUI_DB_PORT}/${XUI_DB_NAME}?sslmode=disable
-
-      # Security / runtime
-      XUI_ENABLE_FAIL2BAN: "true"
-      XUI_DEBUG: "false"
-      XUI_LOG_LEVEL: info
-
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-
-    security_opt:
-      - no-new-privileges:true
-
+      UVICORN_PORT: ${UVICORN_PORT}
+      UVICORN_PROXY_HEADERS: "true"
+      UVICORN_FORWARDED_ALLOW_IPS: "172.22.0.0/16"
+      DASHBOARD_PATH: ${XUI_BASE_PATH}
+      VITE_BASE_API: "/"
+      SUBSCRIPTION_PATH: sub
+      SQLALCHEMY_DATABASE_URL: postgresql+asyncpg://${PG_DB_USER}:${PG_DB_PASSWORD}@${PG_DB_HOST}:${PG_DB_PORT}/${PG_DB_NAME}
+      SUDO_USERNAME: ${SUDO_USERNAME}
+      SUDO_PASSWORD: ${SUDO_PASSWORD}
+      DOCS: "false"
+      DEBUG: "false"
     volumes:
-      - ./data/x-ui:/etc/x-ui
-
+      - ./data/pasarguard:/var/lib/pasarguard
+      - ./config:/config:ro
+      - ./scripts/seed_pasarguard.py:/scripts/seed_pasarguard.py:ro
+      - ./data/pg-node/certs:/node-certs:ro
     networks:
       - infra_proxy_net
       - infra_db_net
-
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=infra_proxy_net"
-
-      # Router
-      - "traefik.http.routers.xui.rule=Host(`${XUI_DOMAIN}`) && PathPrefix(`${XUI_BASE_PATH}`)"
+      - "traefik.http.routers.xui.rule=Host(`${XUI_DOMAIN}`) && (PathPrefix(`${XUI_BASE_PATH}`) || PathPrefix(`/api`) || PathPrefix(`/statics`) || PathPrefix(`/sub`))"
       - "traefik.http.routers.xui.entrypoints=websecure"
       - "traefik.http.routers.xui.tls=true"
       - "traefik.http.routers.xui.service=xui"
-
-      # Edge/CDN router for VLESS+WS
-      - "traefik.http.routers.edge.rule=Host(`${EDGE_DOMAIN}`)"
-      - "traefik.http.routers.edge.entrypoints=websecure"
-      - "traefik.http.routers.edge.tls=true"
-      - "traefik.http.routers.edge.service=edge-svc"
-      - "traefik.http.services.edge-svc.loadbalancer.server.port=${EDGE_PORT}"
-
-      # XUI internal web server
-      - "traefik.http.services.xui.loadbalancer.server.port=${XUI_PORT}"
-
-      # Security headers
+      - "traefik.http.services.xui.loadbalancer.server.port=${UVICORN_PORT}"
       - "traefik.http.middlewares.xui-security.headers.stsSeconds=31536000"
       - "traefik.http.middlewares.xui-security.headers.stsIncludeSubdomains=true"
       - "traefik.http.middlewares.xui-security.headers.contentTypeNosniff=true"
       - "traefik.http.middlewares.xui-security.headers.frameDeny=true"
-
       - "traefik.http.routers.xui.middlewares=xui-security"
-
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "5"
 
+  node:
+    image: ghcr.io/pasarguard/node:v0.5.3
+    container_name: pg-node
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    environment:
+      TZ: ${TZ}
+      NODE_HOST: "0.0.0.0"
+      SERVICE_PORT: "62050"
+      SERVICE_PROTOCOL: grpc
+      API_KEY: ${NODE_API_KEY}
+      SSL_CERT_FILE: /var/lib/pg-node/certs/ssl_cert.pem
+      SSL_KEY_FILE: /var/lib/pg-node/certs/ssl_key.pem
+      GENERATED_CONFIG_PATH: /var/lib/pg-node/generated
+      PG_NODE_WG_HOST_ROUTING: "0"
+    volumes:
+      - ./data/pg-node:/var/lib/pg-node
+    networks:
+      infra_proxy_net:
+        aliases:
+          - node.pasarguard
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=infra_proxy_net"
+      - "traefik.http.routers.edge.rule=Host(`${EDGE_DOMAIN}`)"
+      - "traefik.http.routers.edge.entrypoints=websecure"
+      - "traefik.http.routers.edge.tls=true"
+      - "traefik.http.routers.edge.service=edge-svc"
+      - "traefik.http.services.edge-svc.loadbalancer.server.port=${EDGE_PORT}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 networks:
   infra_proxy_net:
     external: true
-
   infra_db_net:
     external: true

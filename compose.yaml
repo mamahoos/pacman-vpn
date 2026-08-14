@@ -45,6 +45,7 @@ services:
       - "traefik.http.routers.xui.rule=Host(`${XUI_DOMAIN}`) && PathPrefix(`${XUI_BASE_PATH}`)"
       - "traefik.http.routers.xui.entrypoints=websecure"
       - "traefik.http.routers.xui.tls=true"
+      - "traefik.http.routers.xui.service=xui"
 
       # Edge/CDN router for VLESS+WS
       - "traefik.http.routers.edge.rule=Host(`edge.mamahoos.ir`)"

@@ -36,6 +36,26 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("wrangler", workflow)
         self.assertNotIn("cloudflare/pages", workflow)
 
+    def test_cd_deploys_via_ssh_not_pages(self):
+        workflow = (WORKFLOWS / "cd.yml").read_text()
+        self.assertIn("workflow_dispatch", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
+        self.assertIn("appleboy/scp-action@v1", workflow)
+        self.assertIn("appleboy/ssh-action@v1.2.5", workflow)
+        self.assertIn("compose.yaml", workflow)
+        self.assertIn("config/host.json", workflow)
+        self.assertIn("config/xray.json", workflow)
+        self.assertIn("docker compose pull", workflow)
+        self.assertIn("docker compose up -d", workflow)
+        self.assertIn(".deploy-backup", workflow)
+        self.assertIn("scripts/check_cloudflare.py", workflow)
+        self.assertIn("DEPLOY_SSH_KEY", workflow)
+        self.assertNotIn(".env", workflow)
+        self.assertNotIn("config/clients.json", workflow)
+        self.assertNotIn("wrangler", workflow)
+        self.assertNotIn("cloudflare/pages", workflow)
+        self.assertNotIn("npx vercel", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,41 @@
+name: Cloudflare
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check
+    if: ${{ vars.CLOUDFLARE_ZONE_ID != '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Check DNS, SSL, and public smoke
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+          XUI_DOMAIN: ${{ vars.XUI_DOMAIN }}
+          EDGE_DOMAIN: ${{ vars.EDGE_DOMAIN }}
+          XUI_BASE_PATH: ${{ secrets.XUI_BASE_PATH }}
+          INBOUND_WS_PATH: ${{ vars.INBOUND_WS_PATH }}
+        run: python3 scripts/check_cloudflare.py

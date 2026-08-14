@@ -1,9 +1,12 @@
 .env
 .env.*
 !.env.example
+config/clients.json
 
 data/
 logs/
 *.log
+http.cookiejar
 
 .DS_Store
+__pycache__/

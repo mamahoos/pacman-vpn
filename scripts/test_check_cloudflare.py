@@ -42,6 +42,15 @@ class CloudflareCheckTests(unittest.TestCase):
         self.assertTrue(cf.evaluate_ssl("flexible"))
         self.assertTrue(cf.evaluate_ssl("off"))
 
+    def test_ssl_errors_skips_when_settings_unread(self):
+        self.assertEqual(cf.ssl_errors(None), [])
+        self.assertEqual(cf.ssl_errors("strict"), [])
+        self.assertTrue(cf.ssl_errors("flexible"))
+        self.assertEqual(cf.evaluate_ssl("strict"), [])
+        self.assertEqual(cf.evaluate_ssl("full"), [])
+        self.assertTrue(cf.evaluate_ssl("flexible"))
+        self.assertTrue(cf.evaluate_ssl("off"))
+
     def test_evaluate_smoke_accepts_panel_200_and_edge_websocket(self):
         self.assertEqual(cf.evaluate_smoke(panel_status=200, edge_status=400), [])
         self.assertEqual(cf.evaluate_smoke(panel_status=200, edge_status=426), [])

@@ -57,6 +57,12 @@ def evaluate_ssl(value: str) -> list[str]:
     return [f"ssl mode {value!r} is not full or strict"]
 
 
+def ssl_errors(mode: str | None) -> list[str]:
+    if mode is None:
+        return []
+    return evaluate_ssl(mode)
+
+
 def evaluate_smoke(panel_status: int, edge_status: int) -> list[str]:
     errors: list[str] = []
     if panel_status != 200:
@@ -66,7 +72,7 @@ def evaluate_smoke(panel_status: int, edge_status: int) -> list[str]:
     return errors
 
 
-def _request_json(url: str, token: str) -> dict[str, Any]:
+def _request_json(url: str, token: str, allow_forbidden: bool = False) -> dict[str, Any] | None:
     request = urllib.request.Request(
         url,
         headers={
@@ -78,6 +84,8 @@ def _request_json(url: str, token: str) -> dict[str, Any]:
         with urllib.request.urlopen(request, timeout=20) as response:
             payload = json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
+        if allow_forbidden and exc.code == 403:
+            return None
         body = exc.read().decode(errors="replace")
         hint = ""
         if exc.code in {401, 403}:
@@ -94,14 +102,23 @@ def fetch_dns_records(zone_id: str, token: str, hostnames: list[str]) -> list[di
         query = urllib.parse.urlencode({"name": hostname, "per_page": 100})
         url = f"{API_BASE}/zones/{zone_id}/dns_records?{query}"
         payload = _request_json(url, token)
+        if payload is None:
+            continue
         result = payload.get("result") or []
         if isinstance(result, list):
             records.extend(item for item in result if isinstance(item, dict))
     return records
 
 
-def fetch_ssl_mode(zone_id: str, token: str) -> str:
-    payload = _request_json(f"{API_BASE}/zones/{zone_id}/settings/ssl", token)
+def fetch_ssl_mode(zone_id: str, token: str) -> str | None:
+    payload = _request_json(
+        f"{API_BASE}/zones/{zone_id}/settings/ssl",
+        token,
+        allow_forbidden=True,
+    )
+    if payload is None:
+        print("skipping ssl: token lacks Zone Settings Read")
+        return None
     result = payload.get("result") or {}
     if not isinstance(result, dict):
         raise SystemExit("cloudflare ssl setting missing")
@@ -132,7 +149,7 @@ def main() -> int:
 
     records = fetch_dns_records(zone_id, token, [panel_host, edge_host])
     errors = evaluate_hosts(records, panel_host, edge_host)
-    errors.extend(evaluate_ssl(fetch_ssl_mode(zone_id, token)))
+    errors.extend(ssl_errors(fetch_ssl_mode(zone_id, token)))
 
     if skip_smoke or not panel_path:
         if not skip_smoke and not panel_path:

@@ -10,3 +10,5 @@ http.cookiejar
 
 .DS_Store
 __pycache__/
+
+graphify-out/

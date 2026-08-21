@@ -23,7 +23,7 @@
         "network": "ws",
         "security": "none",
         "wsSettings": {
-          "acceptProxyProtocol": true,
+          "acceptProxyProtocol": false,
           "path": "/chat/sync",
           "host": "",
           "headers": {}

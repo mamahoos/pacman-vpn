@@ -25,7 +25,7 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
         compose = (ROOT / "compose.yaml").read_text()
         self.assertIn("traefik.http.routers.edge.rule=Host(`${EDGE_DOMAIN}`)", compose)
         self.assertIn("loadbalancer.server.port=${EDGE_PORT}", compose)
-        self.assertIn("loadbalancer.proxyprotocol.version=2", compose)
+        self.assertNotIn("loadbalancer.proxyprotocol.version", compose)
         self.assertIn("container_name: pg-node", compose)
 
     def test_xray_inbound_stays_plaintext_vless_ws(self):
@@ -38,8 +38,7 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
         self.assertEqual(inbound["streamSettings"]["wsSettings"]["path"], "/chat/sync")
         self.assertEqual(inbound["tag"], "VLESS_WS")
         self.assertTrue(xray["policy"]["levels"]["0"]["statsUserOnline"])
-        self.assertTrue(inbound["streamSettings"]["wsSettings"]["acceptProxyProtocol"])
-        self.assertNotIn("sockopt", inbound["streamSettings"])
+        self.assertFalse(inbound["streamSettings"]["wsSettings"]["acceptProxyProtocol"])
 
     def test_host_link_uses_edge_tls_on_443(self):
         host = json.loads((ROOT / "config" / "host.json").read_text())

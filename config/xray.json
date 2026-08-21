@@ -22,11 +22,8 @@
       "streamSettings": {
         "network": "ws",
         "security": "none",
-        "sockopt": {
-          "trustedXForwardedFor": ["CF-Connecting-IP"]
-        },
         "wsSettings": {
-          "acceptProxyProtocol": false,
+          "acceptProxyProtocol": true,
           "path": "/chat/sync",
           "host": "",
           "headers": {}

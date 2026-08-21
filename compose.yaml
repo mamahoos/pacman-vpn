@@ -80,6 +80,7 @@ services:
       - "traefik.http.routers.edge.tls=true"
       - "traefik.http.routers.edge.service=edge-svc"
       - "traefik.http.services.edge-svc.loadbalancer.server.port=${EDGE_PORT}"
+      - "traefik.http.services.edge-svc.loadbalancer.proxyprotocol.version=2"
     logging:
       driver: json-file
       options:

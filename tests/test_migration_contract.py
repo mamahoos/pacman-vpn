@@ -28,13 +28,19 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
         self.assertIn("container_name: pg-node", compose)
 
     def test_xray_inbound_stays_plaintext_vless_ws(self):
-        inbound = json.loads((ROOT / "config" / "xray.json").read_text())["inbounds"][0]
+        xray = json.loads((ROOT / "config" / "xray.json").read_text())
+        inbound = xray["inbounds"][0]
         self.assertEqual(inbound["protocol"], "vless")
         self.assertEqual(inbound["port"], 10086)
         self.assertEqual(inbound["streamSettings"]["network"], "ws")
         self.assertEqual(inbound["streamSettings"]["security"], "none")
         self.assertEqual(inbound["streamSettings"]["wsSettings"]["path"], "/chat/sync")
         self.assertEqual(inbound["tag"], "VLESS_WS")
+        self.assertTrue(xray["policy"]["levels"]["0"]["statsUserOnline"])
+        self.assertEqual(
+            inbound["streamSettings"]["sockopt"]["trustedXForwardedFor"],
+            ["CF-Connecting-IP"],
+        )
 
     def test_host_link_uses_edge_tls_on_443(self):
         host = json.loads((ROOT / "config" / "host.json").read_text())

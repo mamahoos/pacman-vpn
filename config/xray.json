@@ -1,4 +1,11 @@
 {
+  "policy": {
+    "levels": {
+      "0": {
+        "statsUserOnline": true
+      }
+    }
+  },
   "log": {
     "loglevel": "warning"
   },
@@ -15,6 +22,9 @@
       "streamSettings": {
         "network": "ws",
         "security": "none",
+        "sockopt": {
+          "trustedXForwardedFor": ["CF-Connecting-IP"]
+        },
         "wsSettings": {
           "acceptProxyProtocol": false,
           "path": "/chat/sync",

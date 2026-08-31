@@ -1,6 +1,6 @@
 services:
   panel:
-    image: ghcr.io/pasarguard/panel:v5.2.1
+    image: ghcr.io/pasarguard/panel:v5.3.0
     container_name: pasarguard
     restart: unless-stopped
     entrypoint: ["/bin/sh", "-c"]

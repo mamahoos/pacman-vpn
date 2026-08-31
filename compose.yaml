@@ -51,7 +51,7 @@ services:
         max-file: "5"
 
   node:
-    image: ghcr.io/pasarguard/node:v0.5.3
+    image: ghcr.io/pasarguard/node:v0.5.4
     container_name: pg-node
     restart: unless-stopped
     cap_add:

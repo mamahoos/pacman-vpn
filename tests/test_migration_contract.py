@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class PasarGuardMigrationContractTests(unittest.TestCase):
     def test_compose_pins_latest_stable_images(self):
         compose = (ROOT / "compose.yaml").read_text()
-        self.assertIn("ghcr.io/pasarguard/panel:v5.2.1", compose)
+        self.assertIn("ghcr.io/pasarguard/panel:v5.3.0", compose)
         self.assertIn("ghcr.io/pasarguard/node:v0.5.3", compose)
         self.assertNotIn("ghcr.io/mhsanaei/3x-ui", compose)
 

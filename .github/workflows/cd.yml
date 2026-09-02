@@ -47,6 +47,18 @@ jobs:
             exit 1
           fi
 
+      - name: Temporarily allow SCP through UFW
+        id: firewall
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ env.DEPLOY_SSH_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
+          script: |
+            set -eu
+            ufw insert 1 allow 52222/tcp comment 'temporary-github-actions-deploy'
+
       - name: Backup remote stack files
         uses: appleboy/ssh-action@v1.2.5
         with:
@@ -166,6 +178,18 @@ jobs:
             if [ -f .deploy-backup/scripts/seed_pasarguard.py ]; then cp -a .deploy-backup/scripts/seed_pasarguard.py scripts/seed_pasarguard.py; fi
             if [ -f .deploy-backup/scripts/check_cloudflare.py ]; then cp -a .deploy-backup/scripts/check_cloudflare.py scripts/check_cloudflare.py; fi
             docker compose up -d --remove-orphans
+
+      - name: Remove temporary UFW rule
+        if: always() && steps.firewall.outcome == 'success'
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ env.DEPLOY_SSH_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
+          script: |
+            set -eu
+            ufw delete allow 52222/tcp
 
       - name: Fail job after rollback
         if: steps.health.outcome == 'failure' || steps.egress.outcome == 'failure'

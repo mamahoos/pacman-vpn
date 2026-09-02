@@ -53,12 +53,26 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertIn("if [ -f scripts/check_cloudflare.py ]", workflow)
         self.assertIn("SMOKE_ATTEMPTS", workflow)
         self.assertIn("SMOKE_DELAY_SECONDS", workflow)
+        self.assertIn("Temporarily allow SCP through UFW", workflow)
+        self.assertIn("ufw insert 1 allow 52222/tcp", workflow)
+        self.assertIn("Remove temporary UFW rule", workflow)
+        self.assertIn("ufw delete allow 52222/tcp", workflow)
         self.assertNotIn("script_stop", workflow)
         self.assertNotIn(".env", workflow)
         self.assertNotIn("config/clients.json", workflow)
         self.assertNotIn("wrangler", workflow)
         self.assertNotIn("cloudflare/pages", workflow)
         self.assertNotIn("npx vercel", workflow)
+
+    def test_cd_gates_on_warp_egress_and_rolls_back(self):
+        workflow = (WORKFLOWS / "cd.yml").read_text()
+        self.assertIn("mkdir -p data/warp", workflow)
+        self.assertIn("id: egress", workflow)
+        self.assertIn("--socks5-hostname 127.0.0.1:1080", workflow)
+        self.assertIn("cdn-cgi/trace", workflow)
+        self.assertIn("gemini.google.com", workflow)
+        self.assertIn("steps.egress.outcome == 'failure'", workflow)
+        self.assertIn("docker compose up -d --remove-orphans", workflow)
 
 
 if __name__ == "__main__":

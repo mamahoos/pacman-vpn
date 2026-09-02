@@ -23,7 +23,9 @@
         }
       },
       "sniffing": {
-        "enabled": false
+        "enabled": true,
+        "destOverride": ["http", "tls"],
+        "routeOnly": false
       }
     }
   ],
@@ -33,8 +35,44 @@
       "protocol": "freedom"
     },
     {
+      "tag": "WARP",
+      "protocol": "socks",
+      "settings": {
+        "servers": [
+          {
+            "address": "warp",
+            "port": 1080
+          }
+        ]
+      }
+    },
+    {
       "tag": "BLOCK",
       "protocol": "blackhole"
     }
-  ]
+  ],
+  "routing": {
+    "domainStrategy": "AsIs",
+    "rules": [
+      {
+        "type": "field",
+        "outboundTag": "WARP",
+        "domain": [
+          "domain:gemini.google.com",
+          "domain:aistudio.google.com",
+          "domain:generativelanguage.googleapis.com",
+          "domain:accounts.google.com",
+          "domain:googleusercontent.com",
+          "domain:openai.com",
+          "domain:chatgpt.com",
+          "domain:oaistatic.com",
+          "domain:oaiusercontent.com",
+          "domain:anthropic.com",
+          "domain:claude.ai",
+          "domain:githubcopilot.com",
+          "domain:copilot.microsoft.com"
+        ]
+      }
+    ]
+  }
 }

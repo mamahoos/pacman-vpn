@@ -34,6 +34,21 @@ class SeedPayloadTests(unittest.TestCase):
         self.assertEqual(filled["security"], "tls")
         self.assertEqual(filled["fingerprint"], "chrome")
 
+    def test_core_needs_update_only_on_config_drift(self):
+        desired = {"inbounds": [{"tag": "VLESS_WS"}], "outbounds": [{"tag": "DIRECT"}]}
+        self.assertFalse(seed.core_needs_update({"id": 1, "config": desired}, desired))
+        self.assertTrue(seed.core_needs_update({"id": 1, "config": {}}, desired))
+        self.assertTrue(seed.core_needs_update({"id": 1}, desired))
+
+    def test_core_payload_matches_create_schema(self):
+        desired = {"inbounds": [], "outbounds": []}
+        payload = seed.core_payload(desired)
+        self.assertEqual(payload["name"], "xray-edge")
+        self.assertEqual(payload["type"], "xray")
+        self.assertEqual(payload["config"], desired)
+        self.assertEqual(payload["exclude_inbound_tags"], [])
+        self.assertEqual(payload["fallbacks_inbound_tags"], [])
+
     def test_normalize_username_keeps_login_safe(self):
         self.assertEqual(seed.normalize_username("Nora"), "nora")
         self.assertEqual(seed.normalize_username("Baba"), "baba")

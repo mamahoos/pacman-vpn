@@ -88,8 +88,46 @@ jobs:
           script: |
             set -eu
             cd "$DEPLOY_PATH"
+            mkdir -p data/warp
             docker compose pull
-            docker compose up -d
+            docker compose up -d --remove-orphans
+
+      - name: Check WARP egress
+        id: egress
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ env.DEPLOY_SSH_KEY }}
+          port: ${{ env.DEPLOY_PORT }}
+          envs: DEPLOY_PATH
+          script: |
+            set -eu
+            cd "$DEPLOY_PATH"
+            proxy="--socks5-hostname 127.0.0.1:1080"
+            attempt=1
+            while [ "$attempt" -le 12 ]; do
+              trace=$(docker compose exec -T warp curl -fsS --max-time 15 $proxy \
+                https://cloudflare.com/cdn-cgi/trace || true)
+              code=$(docker compose exec -T warp curl -s -o /dev/null -w '%{http_code}' \
+                --max-time 20 $proxy https://gemini.google.com/ || true)
+              echo "attempt $attempt: warp=$(echo "$trace" | grep '^warp=' || echo '?') gemini=$code"
+              case "$trace" in
+                *warp=on*)
+                  case "$code" in
+                    200|30[0-9])
+                      echo "$trace" | grep '^loc='
+                      exit 0
+                      ;;
+                  esac
+                  ;;
+              esac
+              attempt=$((attempt + 1))
+              sleep 10
+            done
+            echo "tunnel not usable: warp trace or routed domain still blocked"
+            exit 1
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -111,7 +149,7 @@ jobs:
         run: python3 scripts/check_cloudflare.py
 
       - name: Restore backup after failed health
-        if: steps.health.outcome == 'failure'
+        if: steps.health.outcome == 'failure' || steps.egress.outcome == 'failure'
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ env.DEPLOY_HOST }}
@@ -127,10 +165,10 @@ jobs:
             if [ -f .deploy-backup/config/xray.json ]; then cp -a .deploy-backup/config/xray.json config/xray.json; fi
             if [ -f .deploy-backup/scripts/seed_pasarguard.py ]; then cp -a .deploy-backup/scripts/seed_pasarguard.py scripts/seed_pasarguard.py; fi
             if [ -f .deploy-backup/scripts/check_cloudflare.py ]; then cp -a .deploy-backup/scripts/check_cloudflare.py scripts/check_cloudflare.py; fi
-            docker compose up -d
+            docker compose up -d --remove-orphans
 
       - name: Fail job after rollback
-        if: steps.health.outcome == 'failure'
+        if: steps.health.outcome == 'failure' || steps.egress.outcome == 'failure'
         run: |
-          echo "::error::Health check failed; remote files were restored from .deploy-backup"
+          echo "::error::Health or egress check failed; remote files were restored from .deploy-backup"
           exit 1

@@ -60,7 +60,7 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
     def test_xray_routes_ai_domains_through_warp_only(self):
         config = json.loads((ROOT / "config" / "xray.json").read_text())
         routing = config["routing"]
-        self.assertEqual(routing["domainStrategy"], "AsIs")
+        self.assertEqual(routing["domainStrategy"], "ForceIPv6")
         warp_rules = [rule for rule in routing["rules"] if rule["outboundTag"] == "WARP"]
         self.assertEqual(len(warp_rules), 1)
         domains = warp_rules[0]["domain"]

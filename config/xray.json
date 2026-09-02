@@ -53,7 +53,7 @@
     }
   ],
   "routing": {
-    "domainStrategy": "AsIs",
+    "domainStrategy": "ForceIPv6",
     "rules": [
       {
         "type": "field",

@@ -127,6 +127,23 @@ class Panel:
         return body
 
 
+CORE_NAME = "xray-edge"
+
+
+def core_payload(config: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": CORE_NAME,
+        "type": "xray",
+        "config": config,
+        "exclude_inbound_tags": [],
+        "fallbacks_inbound_tags": [],
+    }
+
+
+def core_needs_update(existing: dict[str, Any], desired: dict[str, Any]) -> bool:
+    return existing.get("config") != desired
+
+
 def find_named(items: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
     for item in items:
         if item.get("name") == name:
@@ -152,23 +169,18 @@ def seed(panel: Panel) -> None:
         raise SystemExit("clients file must be a non-empty list")
 
     cores = panel.api("GET", "/api/cores").get("cores") or []
-    core = find_named(cores, "xray-edge")
+    core = find_named(cores, CORE_NAME)
     if core is None:
-        core = panel.api(
-            "POST",
-            "/api/core",
-            {
-                "name": "xray-edge",
-                "type": "xray",
-                "config": xray,
-                "exclude_inbound_tags": [],
-                "fallbacks_inbound_tags": [],
-            },
-        )
+        core = panel.api("POST", "/api/core", core_payload(xray))
         print("created core id=", core.get("id"))
+        core_id = int(core["id"])
     else:
-        print("core exists id=", core.get("id"))
-    core_id = int(core["id"])
+        core_id = int(core["id"])
+        if core_needs_update(core, xray):
+            panel.api("PUT", f"/api/core/{core_id}?restart_nodes=true", core_payload(xray))
+            print("updated core id=", core_id)
+        else:
+            print("core up to date id=", core_id)
 
     groups = (panel.api("GET", "/api/groups") or {}).get("groups") or []
     group = find_named(groups, "edge")

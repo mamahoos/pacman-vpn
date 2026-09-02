@@ -52,6 +52,7 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
         outbounds = json.loads((ROOT / "config" / "xray.json").read_text())["outbounds"]
         warp = next(item for item in outbounds if item["tag"] == "WARP")
         self.assertEqual(warp["protocol"], "socks")
+        self.assertEqual(warp["targetStrategy"], "ForceIPv4")
         server = warp["settings"]["servers"][0]
         self.assertEqual(server["address"], "warp")
         self.assertEqual(server["port"], 1080)
@@ -64,9 +65,13 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
         self.assertEqual(len(warp_rules), 1)
         domains = warp_rules[0]["domain"]
         for expected in (
+            "domain:google.com",
+            "domain:googleapis.com",
+            "domain:gstatic.com",
             "domain:gemini.google.com",
             "domain:generativelanguage.googleapis.com",
             "domain:accounts.google.com",
+            "domain:googleusercontent.com",
             "domain:chatgpt.com",
             "domain:anthropic.com",
             "domain:githubcopilot.com",

@@ -37,6 +37,7 @@
     {
       "tag": "WARP",
       "protocol": "socks",
+      "targetStrategy": "ForceIPv4",
       "settings": {
         "servers": [
           {
@@ -59,6 +60,9 @@
         "outboundTag": "WARP",
         "domain": [
           "domain:gemini.google.com",
+          "domain:google.com",
+          "domain:googleapis.com",
+          "domain:gstatic.com",
           "domain:aistudio.google.com",
           "domain:generativelanguage.googleapis.com",
           "domain:accounts.google.com",

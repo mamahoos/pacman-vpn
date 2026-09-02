@@ -103,6 +103,12 @@ jobs:
             mkdir -p data/warp
             docker compose pull
             docker compose up -d --remove-orphans
+            set -a
+            . ./.env
+            set +a
+            docker compose exec -T \
+              -e EDGE_DOMAIN -e EDGE_PORT -e INBOUND_WS_PATH -e NODE_API_KEY \
+              panel python3 /scripts/seed_pasarguard.py
 
       - name: Check WARP egress
         id: egress

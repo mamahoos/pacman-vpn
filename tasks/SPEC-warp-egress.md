@@ -73,8 +73,25 @@ Decisions and why:
   `googleusercontent.com` go through WARP too, so sign-in and the API call share one
   egress IP.
 
-Routed through WARP: `gemini.google.com`, `aistudio.google.com`,
-`generativelanguage.googleapis.com`, `accounts.google.com`, `googleusercontent.com`.
+Routed through WARP:
+
+| Service | Domains |
+|---|---|
+| Google AI | `gemini.google.com`, `aistudio.google.com`, `generativelanguage.googleapis.com` |
+| Google sign-in and user content | `accounts.google.com`, `googleusercontent.com` |
+| OpenAI | `openai.com`, `chatgpt.com`, `oaistatic.com`, `oaiusercontent.com` |
+| Anthropic | `anthropic.com`, `claude.ai` |
+| Copilot | `githubcopilot.com`, `copilot.microsoft.com` |
+
+`googleusercontent.com` also serves user content for other Google products, so a little
+non-AI traffic takes the tunnel as a side effect. Kept anyway, because Gemini loads its
+attachments from it. `github.com` is deliberately not routed: Copilot works through
+`githubcopilot.com`, and tunnelling git traffic would be a real slowdown.
+
+Panel core updates use `PUT /api/core/{id}?restart_nodes=true` (verified against
+`app/routers/core.py` at tag `v5.3.0`; `restart_nodes` is a required query parameter and
+the node will not pick up new routing without it). `GET /api/cores` already returns each
+core's full `config`, so drift detection needs no extra request.
 
 ## Testing Strategy
 
@@ -117,6 +134,9 @@ Runtime behaviour is verified by the CD egress gate, not by unit tests.
   domains blackhole for all users while everything else keeps working. Mitigated by
   `restart: unless-stopped` and a healthcheck; an Xray balancer with DIRECT fallback is
   deliberately out of scope because it would silently re-expose the blocked IP.
+- **Config drift becomes live on seed.** Once the core is updated in place with
+  `restart_nodes=true`, a bad `config/xray.json` restarts the node and drops every
+  connected user for a few seconds. The contract tests are the guard; keep them strict.
 
 ## Task list
 
@@ -126,8 +146,8 @@ Runtime behaviour is verified by the CD egress gate, not by unit tests.
   - Verify: `python3 scripts/test_seed_pasarguard.py -v`
   - Files: `scripts/seed_pasarguard.py`, `scripts/test_seed_pasarguard.py`
 - [ ] **Add WARP outbound and routing to the core template.**
-  - Acceptance: `WARP` socks outbound to `warp:1080`, routing rules for the five domains,
-    sniffing on, inbound unchanged.
+  - Acceptance: `WARP` socks outbound to `warp:1080`, routing rules for every routed
+    domain, sniffing on, inbound unchanged.
   - Verify: `python3 tests/test_migration_contract.py -v`
   - Files: `config/xray.json`, `tests/test_migration_contract.py`
 - [ ] **Add the warp sidecar to compose.**
@@ -149,9 +169,8 @@ Runtime behaviour is verified by the CD egress gate, not by unit tests.
   - Acceptance: README states which domains are tunnelled and how to verify egress.
   - Files: `README.md`
 
-## Open questions
+## Resolved decisions
 
-1. Is the routed domain list complete for your use, or should ChatGPT/Claude/other
-   services be added in the same change?
-2. `data/warp` on the host is created by the sidecar on first start. CD does not create
-   directories today — confirm it may `mkdir -p data/warp`, or create it once by hand.
+1. Routed domains cover Google AI, OpenAI, Anthropic and Copilot (table above).
+2. CD creates `data/warp` with `mkdir -p` before `up -d`; it is idempotent and keeps the
+   host free of manual bootstrap steps.

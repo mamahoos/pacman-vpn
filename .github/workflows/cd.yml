@@ -7,6 +7,14 @@ on:
         description: Git ref to deploy
         required: false
         default: main
+      scope:
+        description: panel recreates only the panel; all recreates the stack and runs seed
+        type: choice
+        required: true
+        default: panel
+        options:
+          - panel
+          - all
 
 permissions:
   contents: read
@@ -27,6 +35,7 @@ jobs:
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
       DEPLOY_PORT: ${{ vars.DEPLOY_SSH_PORT || 22 }}
+      DEPLOY_SCOPE: ${{ inputs.scope }}
 
     steps:
       - name: Checkout repository
@@ -96,22 +105,35 @@ jobs:
           username: ${{ env.DEPLOY_USER }}
           key: ${{ env.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
-          envs: DEPLOY_PATH
+          envs: DEPLOY_PATH,DEPLOY_SCOPE
           script: |
             set -eu
             cd "$DEPLOY_PATH"
             mkdir -p data/warp
-            docker compose pull
-            docker compose up -d --remove-orphans
-            set -a
-            . ./.env
-            set +a
-            docker compose exec -T \
-              -e EDGE_DOMAIN -e EDGE_PORT -e INBOUND_WS_PATH -e NODE_API_KEY \
-              panel python3 /scripts/seed_pasarguard.py
+            case "${DEPLOY_SCOPE}" in
+              panel)
+                docker compose pull panel
+                docker compose up -d --no-deps panel
+                ;;
+              all)
+                docker compose pull
+                docker compose up -d --remove-orphans
+                set -a
+                . ./.env
+                set +a
+                docker compose exec -T \
+                  -e EDGE_DOMAIN -e EDGE_PORT -e INBOUND_WS_PATH -e NODE_API_KEY \
+                  panel python3 /scripts/seed_pasarguard.py
+                ;;
+              *)
+                echo "unknown DEPLOY_SCOPE=${DEPLOY_SCOPE}" >&2
+                exit 1
+                ;;
+            esac
 
       - name: Check WARP egress
         id: egress
+        if: inputs.scope == 'all'
         continue-on-error: true
         uses: appleboy/ssh-action@v1.2.5
         with:
@@ -174,7 +196,7 @@ jobs:
           username: ${{ env.DEPLOY_USER }}
           key: ${{ env.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
-          envs: DEPLOY_PATH
+          envs: DEPLOY_PATH,DEPLOY_SCOPE
           script: |
             set -eu
             cd "$DEPLOY_PATH"
@@ -183,7 +205,18 @@ jobs:
             if [ -f .deploy-backup/config/xray.json ]; then cp -a .deploy-backup/config/xray.json config/xray.json; fi
             if [ -f .deploy-backup/scripts/seed_pasarguard.py ]; then cp -a .deploy-backup/scripts/seed_pasarguard.py scripts/seed_pasarguard.py; fi
             if [ -f .deploy-backup/scripts/check_cloudflare.py ]; then cp -a .deploy-backup/scripts/check_cloudflare.py scripts/check_cloudflare.py; fi
-            docker compose up -d --remove-orphans
+            case "${DEPLOY_SCOPE}" in
+              panel)
+                docker compose up -d --no-deps panel
+                ;;
+              all)
+                docker compose up -d --remove-orphans
+                ;;
+              *)
+                echo "unknown DEPLOY_SCOPE=${DEPLOY_SCOPE}" >&2
+                exit 1
+                ;;
+            esac
 
       - name: Remove temporary UFW rule
         if: always() && steps.firewall.outcome == 'success'

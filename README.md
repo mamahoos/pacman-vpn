@@ -11,9 +11,12 @@ Production is deployed via GitHub Actions CI/CD.
 | **CI** | push/PR to `main` | Python tests, `docker compose config` render check |
 | **Secret Scan** | push/PR to `main` | Gitleaks secret scan |
 | **Cloudflare** | push/PR, daily cron | DNS, SSL mode, public edge smoke test |
-| **CD** | manual (`workflow_dispatch`) | SSH deploy to production |
+| **CD** | manual (`workflow_dispatch`) | SSH deploy to production (`scope=panel` default) |
 
-**CD flow:** backup remote stack → copy `compose.yaml` + config/scripts → `docker compose pull && up -d` → WARP egress gate → Cloudflare health check → rollback from `.deploy-backup` on failure.
+**CD flow:** backup remote stack → copy `compose.yaml` + config/scripts → deploy by `scope` → Cloudflare health check → rollback from `.deploy-backup` on failure.
+
+- `scope=panel` (default): `docker compose pull panel && up -d --no-deps panel`. Does not seed or recreate `node` / `warp`.
+- `scope=all`: `docker compose pull && up -d --remove-orphans` then seed. WARP egress gate runs only on this path.
 
 Repo vars/secrets for Actions are documented in `.env.example`.
 

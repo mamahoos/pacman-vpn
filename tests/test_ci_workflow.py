@@ -45,10 +45,14 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertIn("compose.yaml", workflow)
         self.assertIn("config/host.json", workflow)
         self.assertIn("config/xray.json", workflow)
+        self.assertIn("default: panel", workflow)
+        self.assertIn("docker compose pull panel", workflow)
+        self.assertIn("docker compose up -d --no-deps panel", workflow)
         self.assertIn("docker compose pull", workflow)
-        self.assertIn("docker compose up -d", workflow)
+        self.assertIn("docker compose up -d --remove-orphans", workflow)
         self.assertIn(". ./.env", workflow)
         self.assertIn("panel python3 /scripts/seed_pasarguard.py", workflow)
+        self.assertIn("DEPLOY_SCOPE", workflow)
         self.assertIn(".deploy-backup", workflow)
         self.assertIn("scripts/check_cloudflare.py", workflow)
         self.assertIn("DEPLOY_SSH_KEY", workflow)
@@ -74,7 +78,9 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertIn("cdn-cgi/trace", workflow)
         self.assertIn("gemini.google.com", workflow)
         self.assertIn("steps.egress.outcome == 'failure'", workflow)
+        self.assertIn("inputs.scope == 'all'", workflow)
         self.assertIn("docker compose up -d --remove-orphans", workflow)
+        self.assertIn("docker compose up -d --no-deps panel", workflow)
 
 
 if __name__ == "__main__":

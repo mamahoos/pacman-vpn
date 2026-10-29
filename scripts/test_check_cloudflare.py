@@ -18,11 +18,13 @@ class CloudflareCheckTests(unittest.TestCase):
         records = [
             record("admin.example.com", "A", True),
             record("edge.example.com", "CNAME", True),
+            record("sub.example.com", "A", True),
         ]
         errors = cf.evaluate_hosts(
             records,
             panel_host="admin.example.com",
             edge_host="edge.example.com",
+            sub_host="sub.example.com",
         )
         self.assertEqual(errors, [])
 
@@ -32,9 +34,41 @@ class CloudflareCheckTests(unittest.TestCase):
             records,
             panel_host="admin.example.com",
             edge_host="edge.example.com",
+            sub_host="sub.example.com",
         )
         self.assertTrue(any("admin.example.com" in error for error in errors))
         self.assertTrue(any("DNS-only" in error for error in errors))
+
+    def test_evaluate_hosts_requires_proxied_sub_host(self):
+        records = [
+            record("admin.example.com", "A", True),
+            record("edge.example.com", "A", True),
+            record("sub.example.com", "A", False),
+        ]
+        errors = cf.evaluate_hosts(
+            records,
+            panel_host="admin.example.com",
+            edge_host="edge.example.com",
+            sub_host="sub.example.com",
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("sub.example.com", errors[0])
+        self.assertIn("DNS-only", errors[0])
+
+        proxied = [
+            record("admin.example.com", "A", True),
+            record("edge.example.com", "A", True),
+            record("sub.example.com", "A", True),
+        ]
+        self.assertEqual(
+            cf.evaluate_hosts(
+                proxied,
+                panel_host="admin.example.com",
+                edge_host="edge.example.com",
+                sub_host="sub.example.com",
+            ),
+            [],
+        )
 
     def test_evaluate_ssl_accepts_full_or_strict(self):
         self.assertEqual(cf.evaluate_ssl("strict"), [])

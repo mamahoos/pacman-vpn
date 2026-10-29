@@ -33,6 +33,7 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertIn("scripts/check_cloudflare.py", workflow)
         self.assertIn("CLOUDFLARE_API_TOKEN", workflow)
         self.assertIn("actions/checkout@v7", workflow)
+        self.assertIn("SUB_DOMAIN: ${{ vars.SUB_DOMAIN }}", workflow)
         self.assertNotIn("wrangler", workflow)
         self.assertNotIn("cloudflare/pages", workflow)
 
@@ -52,6 +53,7 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertIn("docker compose up -d --remove-orphans", workflow)
         self.assertIn(". ./.env", workflow)
         self.assertIn("panel python3 /scripts/seed_pasarguard.py", workflow)
+        self.assertIn("SUB_DOMAIN: ${{ vars.SUB_DOMAIN }}", workflow)
         self.assertIn("DEPLOY_SCOPE", workflow)
         self.assertIn(".deploy-backup", workflow)
         self.assertIn("scripts/check_cloudflare.py", workflow)

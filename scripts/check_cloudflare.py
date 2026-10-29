@@ -27,9 +27,11 @@ def require_env(name: str) -> str:
     return value
 
 
-def evaluate_hosts(records: list[dict[str, Any]], panel_host: str, edge_host: str) -> list[str]:
+def evaluate_hosts(
+    records: list[dict[str, Any]], panel_host: str, edge_host: str, sub_host: str
+) -> list[str]:
     errors: list[str] = []
-    for hostname in (panel_host, edge_host):
+    for hostname in (panel_host, edge_host, sub_host):
         error = _evaluate_host(records, hostname)
         if error:
             errors.append(error)
@@ -190,6 +192,7 @@ def main() -> int:
     zone_id = require_env("CLOUDFLARE_ZONE_ID")
     panel_host = require_env("XUI_DOMAIN")
     edge_host = require_env("EDGE_DOMAIN")
+    sub_host = require_env("SUB_DOMAIN")
     ws_path = os.environ.get("INBOUND_WS_PATH", "/chat/sync").strip() or "/chat/sync"
     panel_path = os.environ.get("XUI_BASE_PATH", "").strip()
     skip_smoke = os.environ.get("SKIP_SMOKE", "").strip() in {"1", "true", "yes"}
@@ -197,8 +200,8 @@ def main() -> int:
     delay_seconds = _env_int("SMOKE_DELAY_SECONDS", 10)
 
     def run_once() -> list[str]:
-        records = fetch_dns_records(zone_id, token, [panel_host, edge_host])
-        errors = evaluate_hosts(records, panel_host, edge_host)
+        records = fetch_dns_records(zone_id, token, [panel_host, edge_host, sub_host])
+        errors = evaluate_hosts(records, panel_host, edge_host, sub_host)
         errors.extend(ssl_errors(fetch_ssl_mode(zone_id, token)))
         if skip_smoke or not panel_path:
             if not skip_smoke and not panel_path:

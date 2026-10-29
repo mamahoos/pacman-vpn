@@ -143,6 +143,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
           XUI_DOMAIN: ${{ vars.XUI_DOMAIN }}
+          SUB_DOMAIN: ${{ vars.SUB_DOMAIN }}
           EDGE_DOMAIN: ${{ vars.EDGE_DOMAIN }}
           XUI_BASE_PATH: ${{ secrets.XUI_BASE_PATH }}
           INBOUND_WS_PATH: ${{ vars.INBOUND_WS_PATH }}

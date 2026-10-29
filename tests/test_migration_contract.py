@@ -63,6 +63,22 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
             ["DIRECT", "BLOCK"],
         )
 
+    def test_compose_splits_subscription_to_third_host(self):
+        compose = (ROOT / "compose.yaml").read_text()
+        self.assertIn(
+            "traefik.http.routers.sub.rule=Host(`${SUB_DOMAIN:-sub.mamahoos.ir}`) && PathPrefix(`/sub`)",
+            compose,
+        )
+        self.assertIn("traefik.http.routers.sub.entrypoints=websecure", compose)
+        self.assertIn("traefik.http.routers.sub.tls=true", compose)
+        self.assertIn("traefik.http.routers.sub.service=xui", compose)
+        xui_rule = next(
+            line for line in compose.splitlines() if "traefik.http.routers.xui.rule=" in line
+        )
+        self.assertNotIn("PathPrefix(`/sub`)", xui_rule)
+        self.assertIn("PathPrefix(`/api`)", xui_rule)
+        self.assertIn("PathPrefix(`/statics`)", xui_rule)
+
     def test_host_link_uses_edge_tls_on_443(self):
         host = json.loads((ROOT / "config" / "host.json").read_text())
         self.assertIn("edge.example.com", host["address"])

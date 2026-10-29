@@ -36,7 +36,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=infra_proxy_net"
-      - "traefik.http.routers.xui.rule=Host(`${XUI_DOMAIN}`) && (PathPrefix(`${XUI_BASE_PATH}`) || PathPrefix(`/api`) || PathPrefix(`/statics`) || PathPrefix(`/sub`))"
+      - "traefik.http.routers.xui.rule=Host(`${XUI_DOMAIN}`) && (PathPrefix(`${XUI_BASE_PATH}`) || PathPrefix(`/api`) || PathPrefix(`/statics`))"
       - "traefik.http.routers.xui.entrypoints=websecure"
       - "traefik.http.routers.xui.tls=true"
       - "traefik.http.routers.xui.service=xui"
@@ -46,6 +46,11 @@ services:
       - "traefik.http.middlewares.xui-security.headers.contentTypeNosniff=true"
       - "traefik.http.middlewares.xui-security.headers.frameDeny=true"
       - "traefik.http.routers.xui.middlewares=xui-security"
+      - "traefik.http.routers.sub.rule=Host(`${SUB_DOMAIN:-sub.mamahoos.ir}`) && PathPrefix(`/sub`)"
+      - "traefik.http.routers.sub.entrypoints=websecure"
+      - "traefik.http.routers.sub.tls=true"
+      - "traefik.http.routers.sub.service=xui"
+      - "traefik.http.routers.sub.middlewares=xui-security"
     logging:
       driver: json-file
       options:

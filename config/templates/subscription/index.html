@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ user.username }} — pacman-vpn</title>
+    <style>
+        :root { color-scheme: dark; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0a;
+            color: #e8e8e8;
+            font: 14px/1.7 ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        main { width: 100%; max-width: 32rem; }
+        .munch {
+            color: #ffe600;
+            letter-spacing: 0.2em;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        h1 { font-size: 1rem; font-weight: 600; margin: 0.75rem 0 0.25rem; }
+        .status { color: #888; font-weight: 400; }
+        .bar {
+            color: #ffe600;
+            letter-spacing: 0.12em;
+            margin: 0.75rem 0;
+            white-space: nowrap;
+        }
+        .bar .dot { color: #555; }
+        dl {
+            display: grid;
+            grid-template-columns: 7ch 1fr;
+            gap: 0.15rem 1.25rem;
+            margin: 1rem 0;
+        }
+        dt { color: #666; }
+        dd { overflow-wrap: anywhere; }
+        hr { border: 0; border-top: 1px dashed #2a2a2a; margin: 1rem 0; }
+        .announce { color: #b8b8b8; white-space: pre-wrap; }
+        details summary { cursor: pointer; color: #888; }
+        .link {
+            color: #999;
+            font-size: 12px;
+            overflow-wrap: anywhere;
+            padding: 0.25rem 0;
+            cursor: pointer;
+        }
+        .link:hover { color: #ffe600; }
+        button {
+            background: none;
+            border: 1px solid #333;
+            color: #888;
+            font: inherit;
+            font-size: 12px;
+            padding: 0.3rem 0.8rem;
+            margin-top: 0.5rem;
+            cursor: pointer;
+        }
+        button:hover { border-color: #ffe600; color: #ffe600; }
+        footer { color: #444; font-size: 11px; margin-top: 1.5rem; }
+    </style>
+</head>
+<body>
+    <main>
+        {% set has_limit = true if user.data_limit else false %}
+        {% set pct = (user.used_traffic / user.data_limit * 100) if has_limit else 0 %}
+        {% set eaten = ((pct / 10) | round(0) | int) if has_limit else 0 %}
+        {% set eaten = [eaten, 10] | min %}
+        {% set eaten = [eaten, 0] | max %}
+
+        <div class="munch">ᗧ · · · · · · · · · ·</div>
+
+        <h1>
+            {{ user.username }}
+            <span class="status">{{ {'active': '✅', 'limited': '🪫', 'expired': '⌛️', 'disabled': '❌', 'on_hold': '🔌'}.get(user.status.value, '❓') }}</span>
+        </h1>
+
+        {% if has_limit %}
+        <div class="bar">ᗧ{{ '•' * eaten }}<span class="dot">{{ '·' * (10 - eaten) }}</span></div>
+        {% else %}
+        <div class="bar">ᗧ<span class="dot">· · · · · · · · · ·</span></div>
+        {% endif %}
+
+        <dl>
+            <dt>used</dt>
+            <dd>
+                {{ user.used_traffic | bytesformat }} / {% if has_limit %}{{ user.data_limit | bytesformat }} · {{ pct | round(1) }}%{% else %}∞{% endif %}
+            </dd>
+            <dt>left</dt>
+            <dd>{% if has_limit %}{{ [user.data_limit - user.used_traffic, 0] | max | bytesformat }}{% else %}∞{% endif %}</dd>
+            <dt>expires</dt>
+            <dd>{% if user.expire %}{{ user.expire | datetime }} · {{ [ (user.expire - now()).days, 0 ] | max }}d{% else %}∞{% endif %}</dd>
+            <dt>your ip</dt>
+            <dd id="ip">…</dd>
+        </dl>
+
+        {% if announce %}
+        <hr>
+        <div class="announce">{{ announce }}</div>
+        {% endif %}
+
+        {% if links %}
+        <hr>
+        <details>
+            <summary>{{ links | length }} configs — click a line to copy</summary>
+            {% for link in links %}
+            <div class="link" onclick="navigator.clipboard.writeText(this.textContent)">{{ link }}</div>
+            {% endfor %}
+            <button type="button" onclick="navigator.clipboard.writeText([...document.querySelectorAll('.link')].map(n => n.textContent).join('\n'))">copy all</button>
+        </details>
+        {% endif %}
+
+        <footer>pacman-vpn · ᗧ waka waka</footer>
+    </main>
+
+    <script>
+        fetch("https://api.ipify.org?format=json")
+            .then(function (r) { return r.json(); })
+            .then(function (d) { document.getElementById("ip").textContent = d.ip; })
+            .catch(function () { document.getElementById("ip").textContent = "n/a"; });
+    </script>
+</body>
+</html>

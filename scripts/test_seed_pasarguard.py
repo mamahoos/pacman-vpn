@@ -19,17 +19,17 @@ import seed_pasarguard as seed  # noqa: E402
 class SeedPayloadTests(unittest.TestCase):
     def test_fill_xray_keeps_plaintext_ws(self):
         template = json.loads((ROOT / "config" / "xray.json").read_text())
-        filled = seed.fill_xray(template, "edge.mamahoos.ir", 10086, "/chat/sync")
+        filled = seed.fill_xray(template, "edge.example.com", 10086, "/chat/sync")
         inbound = filled["inbounds"][0]
         self.assertEqual(inbound["streamSettings"]["security"], "none")
-        self.assertEqual(inbound["streamSettings"]["wsSettings"]["host"], "edge.mamahoos.ir")
+        self.assertEqual(inbound["streamSettings"]["wsSettings"]["host"], "edge.example.com")
         self.assertEqual(inbound["port"], 10086)
 
     def test_fill_host_uses_public_tls_edge(self):
         template = json.loads((ROOT / "config" / "host.json").read_text())
-        filled = seed.fill_host(template, "edge.mamahoos.ir", "/chat/sync")
-        self.assertEqual(filled["address"], ["edge.mamahoos.ir"])
-        self.assertEqual(filled["sni"], ["edge.mamahoos.ir"])
+        filled = seed.fill_host(template, "edge.example.com", "/chat/sync")
+        self.assertEqual(filled["address"], ["edge.example.com"])
+        self.assertEqual(filled["sni"], ["edge.example.com"])
         self.assertEqual(filled["port"], 443)
         self.assertEqual(filled["security"], "tls")
         self.assertEqual(filled["fingerprint"], "chrome")

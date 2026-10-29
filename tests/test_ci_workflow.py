@@ -70,15 +70,13 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("cloudflare/pages", workflow)
         self.assertNotIn("npx vercel", workflow)
 
-    def test_cd_gates_on_warp_egress_and_rolls_back(self):
+    def test_cd_rolls_back_on_health_failure_without_egress_gate(self):
         workflow = (WORKFLOWS / "cd.yml").read_text()
-        self.assertIn("mkdir -p data/warp", workflow)
-        self.assertIn("id: egress", workflow)
-        self.assertIn("--socks5-hostname 127.0.0.1:1080", workflow)
-        self.assertIn("cdn-cgi/trace", workflow)
-        self.assertIn("gemini.google.com", workflow)
-        self.assertIn("steps.egress.outcome == 'failure'", workflow)
-        self.assertIn("inputs.scope == 'all'", workflow)
+        self.assertNotIn("warp", workflow.lower())
+        self.assertNotIn("egress", workflow.lower())
+        self.assertIn("id: health", workflow)
+        self.assertIn("steps.health.outcome == 'failure'", workflow)
+        self.assertIn(".deploy-backup", workflow)
         self.assertIn("docker compose up -d --remove-orphans", workflow)
         self.assertIn("docker compose up -d --no-deps panel", workflow)
 

@@ -49,45 +49,19 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
         self.assertEqual(outbounds[0]["protocol"], "freedom")
         self.assertIn("BLOCK", [item["tag"] for item in outbounds])
 
-    def test_xray_warp_outbound_targets_sidecar_socks(self):
-        outbounds = json.loads((ROOT / "config" / "xray.json").read_text())["outbounds"]
-        warp = next(item for item in outbounds if item["tag"] == "WARP")
-        self.assertEqual(warp["protocol"], "socks")
-        self.assertEqual(warp["targetStrategy"], "ForceIPv4")
-        server = warp["settings"]["servers"][0]
-        self.assertEqual(server["address"], "warp")
-        self.assertEqual(server["port"], 1080)
-
-    def test_xray_routes_ai_domains_through_warp_only(self):
-        config = json.loads((ROOT / "config" / "xray.json").read_text())
-        routing = config["routing"]
-        self.assertEqual(routing["domainStrategy"], "ForceIPv6")
-        warp_rules = [rule for rule in routing["rules"] if rule["outboundTag"] == "WARP"]
-        self.assertEqual(len(warp_rules), 1)
-        domains = warp_rules[0]["domain"]
-        for expected in (
-            "domain:google.com",
-            "domain:googleapis.com",
-            "domain:gstatic.com",
-            "domain:gemini.google.com",
-            "domain:generativelanguage.googleapis.com",
-            "domain:accounts.google.com",
-            "domain:googleusercontent.com",
-            "domain:chatgpt.com",
-            "domain:anthropic.com",
-            "domain:githubcopilot.com",
-        ):
-            self.assertIn(expected, domains)
-        self.assertNotIn("domain:github.com", domains)
-        self.assertNotIn("geosite:google", json.dumps(config))
-
-    def test_compose_keeps_warp_sidecar_private(self):
-        compose = (ROOT / "compose.yaml").read_text()
-        self.assertIn("caomingjun/warp:", compose)
-        self.assertIn("container_name: warp", compose)
-        self.assertIn("./data/warp:/var/lib/cloudflare-warp", compose)
-        self.assertIn("net.ipv4.conf.all.src_valid_mark=1", compose)
-        self.assertNotIn('"1080:1080"', compose)
+    def test_warp_egress_removed_from_stack(self):
+        compose = (ROOT / "compose.yaml").read_text().lower()
+        xray_text = (ROOT / "config" / "xray.json").read_text()
+        self.assertNotIn("warp", compose)
+        self.assertNotIn("warp", xray_text.lower())
+        self.assertNotIn("caomingjun/warp", compose)
+        self.assertNotIn("./data/warp", compose)
+        config = json.loads(xray_text)
+        self.assertEqual(config["routing"]["rules"], [])
+        self.assertEqual(
+            [item["tag"] for item in config["outbounds"]],
+            ["DIRECT", "BLOCK"],
+        )
 
     def test_host_link_uses_edge_tls_on_443(self):
         host = json.loads((ROOT / "config" / "host.json").read_text())

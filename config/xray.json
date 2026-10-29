@@ -35,48 +35,12 @@
       "protocol": "freedom"
     },
     {
-      "tag": "WARP",
-      "protocol": "socks",
-      "targetStrategy": "ForceIPv4",
-      "settings": {
-        "servers": [
-          {
-            "address": "warp",
-            "port": 1080
-          }
-        ]
-      }
-    },
-    {
       "tag": "BLOCK",
       "protocol": "blackhole"
     }
   ],
   "routing": {
     "domainStrategy": "ForceIPv6",
-    "rules": [
-      {
-        "type": "field",
-        "outboundTag": "WARP",
-        "domain": [
-          "domain:gemini.google.com",
-          "domain:google.com",
-          "domain:googleapis.com",
-          "domain:gstatic.com",
-          "domain:aistudio.google.com",
-          "domain:generativelanguage.googleapis.com",
-          "domain:accounts.google.com",
-          "domain:googleusercontent.com",
-          "domain:openai.com",
-          "domain:chatgpt.com",
-          "domain:oaistatic.com",
-          "domain:oaiusercontent.com",
-          "domain:anthropic.com",
-          "domain:claude.ai",
-          "domain:githubcopilot.com",
-          "domain:copilot.microsoft.com"
-        ]
-      }
-    ]
+    "rules": []
   }
 }

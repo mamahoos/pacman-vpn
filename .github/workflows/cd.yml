@@ -32,10 +32,10 @@ jobs:
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
       DEPLOY_PORT: ${{ vars.DEPLOY_SSH_PORT || 22 }}
       DEPLOY_SCOPE: ${{ inputs.scope }}
+      DEPLOY_FINGERPRINT: ${{ vars.DEPLOY_HOST_FINGERPRINT }}
 
     steps:
       - name: Checkout repository
@@ -43,7 +43,15 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      # --- Shift left ---
       - name: Check deploy secrets
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
           missing=0
           for key in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_PATH; do
@@ -52,17 +60,25 @@ jobs:
               missing=1
             fi
           done
-          if [ "$missing" -eq 1 ]; then
-            exit 1
-          fi
+          [ "$missing" -eq 0 ]
 
+      - name: Validate config and scripts
+        run: |
+          for f in config/*.json; do
+            python3 -m json.tool "$f" > /dev/null || { echo "::error file=$f::Invalid JSON"; exit 1; }
+          done
+          python3 -m py_compile scripts/*.py
+
+      # --- Deploy ---
       - name: Backup remote stack files
+        id: backup
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ env.DEPLOY_HOST }}
           username: ${{ env.DEPLOY_USER }}
-          key: ${{ env.DEPLOY_SSH_KEY }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
+          fingerprint: ${{ env.DEPLOY_FINGERPRINT }}
           envs: DEPLOY_PATH
           script: |
             set -eu
@@ -70,33 +86,37 @@ jobs:
             rm -rf .deploy-backup
             mkdir -p .deploy-backup/config .deploy-backup/scripts
             cp -a compose.yaml .deploy-backup/compose.yaml
-            if [ -f config/host.json ]; then cp -a config/host.json .deploy-backup/config/host.json; fi
-            if [ -f config/xray.json ]; then cp -a config/xray.json .deploy-backup/config/xray.json; fi
-            if [ -f scripts/seed_pasarguard.py ]; then cp -a scripts/seed_pasarguard.py .deploy-backup/scripts/seed_pasarguard.py; fi
-            if [ -f scripts/check_cloudflare.py ]; then cp -a scripts/check_cloudflare.py .deploy-backup/scripts/check_cloudflare.py; fi
+            for f in config/host.json config/xray.json scripts/seed_pasarguard.py scripts/check_cloudflare.py; do
+              if [ -f "$f" ]; then cp -a "$f" ".deploy-backup/$f"; fi
+            done
 
       - name: Copy stack files
+        id: copy
         uses: appleboy/scp-action@v1
         with:
           host: ${{ env.DEPLOY_HOST }}
           username: ${{ env.DEPLOY_USER }}
-          key: ${{ env.DEPLOY_SSH_KEY }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
+          fingerprint: ${{ env.DEPLOY_FINGERPRINT }}
           source: compose.yaml,config/host.json,config/xray.json,scripts/seed_pasarguard.py,scripts/check_cloudflare.py
           target: ${{ env.DEPLOY_PATH }}
           overwrite: true
 
       - name: Pull images and recreate
+        id: deploy
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ env.DEPLOY_HOST }}
           username: ${{ env.DEPLOY_USER }}
-          key: ${{ env.DEPLOY_SSH_KEY }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
+          fingerprint: ${{ env.DEPLOY_FINGERPRINT }}
           envs: DEPLOY_PATH,DEPLOY_SCOPE
           script: |
             set -eu
             cd "$DEPLOY_PATH"
+            docker compose config -q
             case "${DEPLOY_SCOPE}" in
               panel)
                 docker compose pull panel
@@ -118,14 +138,8 @@ jobs:
                 ;;
             esac
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.13"
-
       - name: Check public edge health
         id: health
-        continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
@@ -138,32 +152,25 @@ jobs:
           SMOKE_DELAY_SECONDS: "10"
         run: python3 scripts/check_cloudflare.py
 
-      - name: Restore backup after failed health
-        if: steps.health.outcome == 'failure'
+      - name: Rollback on failure
+        if: failure() && steps.backup.outcome == 'success'
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ env.DEPLOY_HOST }}
           username: ${{ env.DEPLOY_USER }}
-          key: ${{ env.DEPLOY_SSH_KEY }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
+          fingerprint: ${{ env.DEPLOY_FINGERPRINT }}
           envs: DEPLOY_PATH,DEPLOY_SCOPE
           script: |
             set -eu
             cd "$DEPLOY_PATH"
             cp -a .deploy-backup/compose.yaml compose.yaml
-            if [ -f .deploy-backup/config/host.json ]; then cp -a .deploy-backup/config/host.json config/host.json; fi
-            if [ -f .deploy-backup/config/xray.json ]; then cp -a .deploy-backup/config/xray.json config/xray.json; fi
-            if [ -f .deploy-backup/scripts/seed_pasarguard.py ]; then cp -a .deploy-backup/scripts/seed_pasarguard.py scripts/seed_pasarguard.py; fi
-            if [ -f .deploy-backup/scripts/check_cloudflare.py ]; then cp -a .deploy-backup/scripts/check_cloudflare.py scripts/check_cloudflare.py; fi
+            for f in config/host.json config/xray.json scripts/seed_pasarguard.py scripts/check_cloudflare.py; do
+              if [ -f ".deploy-backup/$f" ]; then cp -a ".deploy-backup/$f" "$f"; fi
+            done
             case "${DEPLOY_SCOPE}" in
-              panel)
-                docker compose up -d --no-deps panel
-                ;;
-              all)
-                docker compose up -d --remove-orphans
-                ;;
-              *)
-                echo "unknown DEPLOY_SCOPE=${DEPLOY_SCOPE}" >&2
-                exit 1
-                ;;
+              panel) docker compose up -d --no-deps panel ;;
+              all)   docker compose up -d --remove-orphans ;;
+              *)     echo "unknown DEPLOY_SCOPE=${DEPLOY_SCOPE}" >&2; exit 1 ;;
             esac

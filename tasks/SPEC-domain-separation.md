@@ -169,22 +169,27 @@ tests.
   - Acceptance: answer written in this spec; no code changed.
   - Verify: spec updated + committed.
   - Files: `tasks/SPEC-domain-separation.md`
-- [ ] **Add `SUB_DOMAIN` to env plumbing.** `.env.example` (`SUB_DOMAIN=sub.example.com`),
+- [x] **Add `SUB_DOMAIN` to env plumbing.** *(done — shipped with a default-inline
+  `${SUB_DOMAIN:-sub.mamahoos.ir}` reference in compose, see Resolved decision 5)*
+  `.env.example` (`SUB_DOMAIN=sub.example.com`),
   `cd.yml` + `cloudflare.yml` env passthrough next to `XUI_DOMAIN`.
   - Acceptance: compose renders with `.env.example`; workflows pass the var.
   - Verify: `docker compose --env-file .env.example config` + `python3 tests/test_ci_workflow.py -v`
   - Files: `.env.example`, `.github/workflows/cd.yml`, `.github/workflows/cloudflare.yml`
-- [ ] **Split the Traefik routers in compose.**
+- [x] **Split the Traefik routers in compose.** *(done — sub router also reuses the
+  `xui-security` header middleware and names `service=xui` explicitly)*
   - Acceptance: xui rule has no `/sub`; sub router = `Host(SUB_DOMAIN) && PathPrefix(/sub)`
     with `websecure` + `tls`; panel service otherwise untouched.
   - Verify: `docker compose --env-file .env.example config` + contract tests
   - Files: `compose.yaml`
-- [ ] **Extend contract tests for the split.**
+- [x] **Extend contract tests for the split.** *(done — `test_compose_splits_subscription_to_third_host`)*
   - Acceptance: new assertions for the sub router and the removed `/sub` from xui;
     existing panel-path test still passes.
   - Verify: `python3 tests/test_migration_contract.py -v`
   - Files: `tests/test_migration_contract.py`
-- [ ] **Gate the third host in the DNS check.**
+- [x] **Gate the third host in the DNS check.** *(done — `SUB_DOMAIN` via `require_env`,
+  `evaluate_hosts(records, panel_host, edge_host, sub_host)`; smoke stays panel+edge
+  because no token exists for an unauthenticated sub probe)*
   - Acceptance: `evaluate_hosts` covers panel, edge and sub; unit test for the new host.
   - Verify: `python3 scripts/test_check_cloudflare.py -v`
   - Files: `scripts/check_cloudflare.py`, `scripts/test_check_cloudflare.py`
@@ -192,7 +197,7 @@ tests.
   repo var `SUB_DOMAIN`.
   - Acceptance: `cloudflare.yml` green on all three hosts.
   - Verify: `gh workflow run cloudflare.yml`
-- [ ] **Document the domains.** README domain table: sub / edge / admin roles and the
+- [x] **Document the domains.** *(done — README `## Domains` table + DNS line)* README domain table: sub / edge / admin roles and the
   new subscription URL shape.
   - Acceptance: README matches shipped behaviour.
   - Files: `README.md`
@@ -200,10 +205,9 @@ tests.
 ## Open Questions
 
 1. Keep or drop `admin.mamahoos.ir/sub/...` during a transition window? — **resolved
-   pending decision acceptance**: the decision packet (architecture-decision-making,
-   status `proposed`) selects a staged Traefik `RedirectRegex` (308) so the admin host
-   stops *serving* `/sub` at stage 1 while every issued link keeps working, with the
-   path + middleware removed together at stage 2.
+   (2026-10-29): dropped.** The operator accepted **Option B** (routers + canonical
+   prefix, hard cut): no transition redirect, issued admin-origin links break at
+   deploy, users re-sync their subscription URL once.
 2. ~~Should the panel UI show the `sub.mamahoos.ir` link explicitly?~~ **Answered
    (task 1):** set `Subscription.url_prefix = https://sub.mamahoos.ir` in panel
    settings — UI, QR and Telegram then emit absolute sub-host links with no code
@@ -224,3 +228,12 @@ tests.
    Serving is host-agnostic: the router is `prefix=/{path}/{token}` with no
    `ALLOWED_HOSTS`/CORS host restriction, so any hostname Traefik routes will serve
    the endpoint.
+5. *(decision accepted 2026-10-29)* **Option B — routers + canonical prefix, hard
+   cut.** `PathPrefix(/sub)` removed from the `xui` router, dedicated `sub` router
+   added, **no** `RedirectRegex` transition window (operator explicitly accepted the
+   one-shot client re-sync over Option C's extra middleware pair and stage-2 removal
+   step). `SUB_DOMAIN` is referenced as `${SUB_DOMAIN:-sub.mamahoos.ir}` in
+   `compose.yaml` so the server `.env` needs no new key (requirement: no server-side
+   `.env` change); the GitHub repo var `SUB_DOMAIN` and the proxied DNS record stay
+   manual (task list). `check_cloudflare.py` requires the var, so the gate fails
+   closed until both manual steps land — accepted per Known risks.

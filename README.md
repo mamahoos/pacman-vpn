@@ -4,6 +4,22 @@ Personal VLESS VPN stack (PasarGuard panel + node, Traefik, PostgreSQL).
 
 Production is deployed via GitHub Actions CI/CD.
 
+## Domains
+
+| Host | Env | Serves |
+|---|---|---|
+| `sub.example.com` | `SUB_DOMAIN` | subscriptions only — `https://…/sub/<token>`; any other path 404s |
+| `edge.example.com` | `EDGE_DOMAIN` | tunnel inbound (xray WS `/chat/sync`) — client configs unchanged |
+| `xui-admin.example.com` | `XUI_DOMAIN` | admin console + `/api` + `/statics` — `/sub` is **not** served here |
+
+New share-links come from the panel setting `Subscription.url_prefix`, which must be
+set once to `https://<SUB_DOMAIN>` in panel settings — UI, QR codes and Telegram then
+emit sub-host links. Links already issued under `<XUI_DOMAIN>/sub/...` stop working at
+the router split, so users re-sync their subscription URL once. `SUB_DOMAIN` defaults
+to `sub.mamahoos.ir` inside `compose.yaml` (no server `.env` change needed); the
+Cloudflare gate reads the GitHub repo var of the same name and fails closed until it
+exists.
+
 ## CI/CD
 
 | Workflow | Trigger | What it does |
@@ -48,6 +64,6 @@ docker compose --env-file .env up -d
 
 `compose.infra.yml` starts Traefik and PostgreSQL and creates the shared Docker networks (`infra_proxy_net`, `infra_db_net`) that `compose.yaml` expects.
 
-Point DNS for `XUI_DOMAIN` and `EDGE_DOMAIN` at this host (or `/etc/hosts` for local testing). Traefik serves HTTPS with its built-in default certificate for local use.
+Point DNS for `XUI_DOMAIN`, `EDGE_DOMAIN` and `SUB_DOMAIN` at this host (or `/etc/hosts` for local testing). Traefik serves HTTPS with its built-in default certificate for local use.
 
 If `infra_proxy_net` or `infra_db_net` already exist, remove them first or reuse them as-is (`docker network rm infra_proxy_net infra_db_net`).

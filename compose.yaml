@@ -7,14 +7,16 @@ services:
     command:
       - |
         set -eu
-        UVICORN_HOST=$$(hostname -I | tr ' ' '\n' | grep '^172.22.' | head -n1)
+        SUBNET="${INFRA_SUBNET:-172.22.0.0/16}"
+        PREFIX=$$(printf '%s' "$$SUBNET" | cut -d. -f1,2)
+        UVICORN_HOST=$$(hostname -I | tr ' ' '\n' | grep "^$$PREFIX." | head -n1)
         export UVICORN_HOST
         exec /code/start.sh
     environment:
       TZ: ${TZ}
       UVICORN_PORT: ${UVICORN_PORT}
       UVICORN_PROXY_HEADERS: "true"
-      UVICORN_FORWARDED_ALLOW_IPS: "172.22.0.0/16"
+      UVICORN_FORWARDED_ALLOW_IPS: "${INFRA_SUBNET:-172.22.0.0/16}"
       DASHBOARD_PATH: ${XUI_BASE_PATH}
       VITE_BASE_API: "/"
       SUBSCRIPTION_PATH: sub

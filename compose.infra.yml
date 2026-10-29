@@ -40,7 +40,7 @@ networks:
     name: infra_proxy_net
     ipam:
       config:
-        - subnet: 172.22.0.0/16
+        - subnet: ${INFRA_SUBNET:-172.22.0.0/16}
   infra_db_net:
     name: infra_db_net
 

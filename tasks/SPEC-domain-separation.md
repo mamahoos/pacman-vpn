@@ -145,10 +145,12 @@ tests.
 
 ## Known risks
 
-- **Generated subscription URLs may hardcode the admin host.** If the panel builds
-  absolute `/sub` URLs from config instead of the request host, links shown in the UI
-  would still point at `admin.mamahoos.ir`. Task 1 verifies this against the panel
-  source at the pinned tag before any routing change ships — this is the gate.
+- **Verified (task 1): links do not use the request host.** They come from the
+  `Subscription.url_prefix` setting; a relative/empty prefix is resolved by the
+  dashboard against its own origin (= the admin host). Consequence: `url_prefix` must
+  be set to `https://sub.mamahoos.ir` **before** `/sub` leaves the admin host, or every
+  link the UI/QR/Telegram emits 404s. The deploy order is now a hard gate, not a
+  guess.
 - **Issued links break** when `/sub` leaves the admin host (assumption 4). Mitigation:
   re-sync window announced before deploy, or temporarily keep `/sub` on both routers.
 - **CI/CD red until the `SUB_DOMAIN` var exists.** `check_cloudflare.py` uses
@@ -160,7 +162,8 @@ tests.
 
 ## Task list
 
-- [ ] **Verify panel subscription URL generation.** Inspect PasarGuard panel source at
+- [x] **Verify panel subscription URL generation.** *(done — findings in Resolved
+  decisions 4; source inspected at tag `v5.5.0`)* Inspect PasarGuard panel source at
   the pinned tag: does it build `/sub` URLs from the request host or from config?
   Record the answer under Resolved decisions; if config-based, stop and redesign.
   - Acceptance: answer written in this spec; no code changed.
@@ -196,14 +199,28 @@ tests.
 
 ## Open Questions
 
-1. Keep or drop `admin.mamahoos.ir/sub/...` during a transition window? (Assumption 4
-   says drop; a temporary Traefik `RedirectRegex` to `sub.mamahoos.ir` is the cheap
-   middle option.)
-2. Should the panel UI show the `sub.mamahoos.ir` link explicitly (depends on task 1's
-   answer)?
+1. Keep or drop `admin.mamahoos.ir/sub/...` during a transition window? — **resolved
+   pending decision acceptance**: the decision packet (architecture-decision-making,
+   status `proposed`) selects a staged Traefik `RedirectRegex` (308) so the admin host
+   stops *serving* `/sub` at stage 1 while every issued link keeps working, with the
+   path + middleware removed together at stage 2.
+2. ~~Should the panel UI show the `sub.mamahoos.ir` link explicitly?~~ **Answered
+   (task 1):** set `Subscription.url_prefix = https://sub.mamahoos.ir` in panel
+   settings — UI, QR and Telegram then emit absolute sub-host links with no code
+   change. The seed script does not touch settings (verified), so this is a manual
+   panel step or a future seed extension.
 
 ## Resolved decisions
 
 1. One panel container, two routers (hostname-level isolation only).
 2. `/sub` prefix retained on the new host; `SUBSCRIPTION_PATH` unchanged.
 3. Edge domain and client configs are out of scope — byte-identical.
+4. *(task 1, verified against `PasarGuard/panel@v5.5.0` source)* Subscription links are
+   config-derived, not request-derived: `generate_subscription_url` in
+   `app/operation/user.py` returns `f"{url_prefix}/{path}/{token}"` where `url_prefix`
+   is the `Subscription.url_prefix` setting with a per-user `user.admin.sub_domain`
+   override. The dashboard resolves relative prefixes with `window.location.origin`
+   (`resolveSubscriptionQrUrl`) and passes absolute prefixes through unchanged.
+   Serving is host-agnostic: the router is `prefix=/{path}/{token}` with no
+   `ALLOWED_HOSTS`/CORS host restriction, so any hostname Traefik routes will serve
+   the endpoint.

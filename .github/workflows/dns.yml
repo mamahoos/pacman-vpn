@@ -31,7 +31,9 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      # DNS sync only curls the public IP from the box, so it runs as the
+      # unprivileged account; root stays CD's business (secrets.DEPLOY_USER).
+      DEPLOY_USER: mamahoos
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       DEPLOY_PORT: ${{ vars.DEPLOY_SSH_PORT || 22 }}
 
@@ -42,7 +44,7 @@ jobs:
       - name: Check credentials
         run: |
           missing=0
-          for key in CLOUDFLARE_API_TOKEN DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY; do
+          for key in CLOUDFLARE_API_TOKEN DEPLOY_HOST DEPLOY_SSH_KEY; do
             if [ -z "${!key}" ]; then
               echo "::error::Missing required secret: $key"
               missing=1

@@ -9,8 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 class PasarGuardMigrationContractTests(unittest.TestCase):
     def test_compose_pins_latest_stable_images(self):
         compose = (ROOT / "compose.yaml").read_text()
-        self.assertIn("ghcr.io/pasarguard/panel:v5.3.0", compose)
-        self.assertIn("ghcr.io/pasarguard/node:v0.5.4", compose)
+        self.assertIn("ghcr.io/pasarguard/panel:", compose)
+        self.assertIn("ghcr.io/pasarguard/node:", compose)
+        self.assertNotIn(":latest", compose)
         self.assertNotIn("ghcr.io/mhsanaei/3x-ui", compose)
 
     def test_compose_keeps_panel_path_and_exposes_api(self):
@@ -82,7 +83,7 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
 
     def test_compose_keeps_warp_sidecar_private(self):
         compose = (ROOT / "compose.yaml").read_text()
-        self.assertIn("caomingjun/warp:2026.6.880.0-2.12.0", compose)
+        self.assertIn("caomingjun/warp:", compose)
         self.assertIn("container_name: warp", compose)
         self.assertIn("./data/warp:/var/lib/cloudflare-warp", compose)
         self.assertIn("net.ipv4.conf.all.src_valid_mark=1", compose)

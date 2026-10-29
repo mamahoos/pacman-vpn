@@ -56,19 +56,6 @@ jobs:
             exit 1
           fi
 
-      - name: Temporarily allow SCP through UFW
-        id: firewall
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          username: ${{ env.DEPLOY_USER }}
-          key: ${{ env.DEPLOY_SSH_KEY }}
-          port: ${{ env.DEPLOY_PORT }}
-          envs: DEPLOY_PORT
-          script: |
-            set -eu
-            ufw insert 1 allow "$DEPLOY_PORT/tcp" comment 'temporary-github-actions-deploy'
-
       - name: Backup remote stack files
         uses: appleboy/ssh-action@v1.2.5
         with:
@@ -180,22 +167,3 @@ jobs:
                 exit 1
                 ;;
             esac
-
-      - name: Remove temporary UFW rule
-        if: always() && steps.firewall.outcome == 'success'
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ env.DEPLOY_HOST }}
-          username: ${{ env.DEPLOY_USER }}
-          key: ${{ env.DEPLOY_SSH_KEY }}
-          port: ${{ env.DEPLOY_PORT }}
-          envs: DEPLOY_PORT
-          script: |
-            set -eu
-            ufw delete allow "$DEPLOY_PORT/tcp"
-
-      - name: Fail job after rollback
-        if: steps.health.outcome == 'failure'
-        run: |
-          echo "::error::Health check failed; remote files were restored from .deploy-backup"
-          exit 1

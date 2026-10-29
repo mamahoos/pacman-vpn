@@ -27,6 +27,7 @@ exists.
 | **CI** | push/PR to `main` | Python tests, `docker compose config` render check |
 | **Secret Scan** | push/PR to `main` | Gitleaks secret scan |
 | **Cloudflare** | push/PR, daily cron | DNS, SSL mode, public edge smoke test |
+| **DNS sync** | push (dns files), manual | dnscontrol creates/updates the `admin`/`sub`/`edge` A records (origin IP resolved over SSH) |
 | **CD** | manual (`workflow_dispatch`) | SSH deploy to production (`scope=panel` default) |
 
 **CD flow:** backup remote stack → copy `compose.yaml` + config/scripts → deploy by `scope` → Cloudflare health check → rollback from `.deploy-backup` on failure.

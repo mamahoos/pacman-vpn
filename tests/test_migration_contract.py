@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -78,6 +79,18 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
         self.assertNotIn("PathPrefix(`/sub`)", xui_rule)
         self.assertIn("PathPrefix(`/api`)", xui_rule)
         self.assertIn("PathPrefix(`/statics`)", xui_rule)
+
+    def test_dns_config_manages_three_hosts_without_hardcoded_ip(self):
+        cfg = (ROOT / ".github" / "dns" / "dnsconfig.js").read_text()
+        self.assertIn("NO_PURGE", cfg)
+        self.assertIn('cloudflare_proxy: "on"', cfg)
+        for host in ("admin", "sub", "edge"):
+            self.assertIn(f'A("{host}", "__ORIGIN_IP__"', cfg)
+        self.assertIsNone(re.search(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", cfg))
+        creds = json.loads((ROOT / ".github" / "dns" / "creds.json").read_text())
+        self.assertEqual(
+            creds["cloudflare"]["apitoken"], "$CLOUDFLARE_API_TOKEN"
+        )
 
     def test_host_link_uses_edge_tls_on_443(self):
         host = json.loads((ROOT / "config" / "host.json").read_text())

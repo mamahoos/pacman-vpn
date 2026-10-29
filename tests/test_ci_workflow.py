@@ -37,6 +37,18 @@ class CiWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("wrangler", workflow)
         self.assertNotIn("cloudflare/pages", workflow)
 
+    def test_dns_sync_uses_dnscontrol_push(self):
+        workflow = (WORKFLOWS / "dns.yml").read_text()
+        self.assertIn("workflow_dispatch", workflow)
+        self.assertIn("is-cool-me/dnscontrol-action@v4.34.0", workflow)
+        self.assertIn("config_file: .github/dns/dnsconfig.js", workflow)
+        self.assertIn("creds_file: .github/dns/creds.json", workflow)
+        self.assertIn("CLOUDFLARE_API_TOKEN", workflow)
+        self.assertIn("__ORIGIN_IP__", workflow)
+        self.assertIn("ifconfig.me", workflow)
+        self.assertIn("StrictHostKeyChecking=accept-new", workflow)
+        self.assertNotIn("wrangler", workflow)
+
     def test_cd_deploys_via_ssh_not_pages(self):
         workflow = (WORKFLOWS / "cd.yml").read_text()
         self.assertIn("workflow_dispatch", workflow)

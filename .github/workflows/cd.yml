@@ -64,9 +64,10 @@ jobs:
           username: ${{ env.DEPLOY_USER }}
           key: ${{ env.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
+          envs: DEPLOY_PORT
           script: |
             set -eu
-            ufw insert 1 allow 52222/tcp comment 'temporary-github-actions-deploy'
+            ufw insert 1 allow "$DEPLOY_PORT/tcp" comment 'temporary-github-actions-deploy'
 
       - name: Backup remote stack files
         uses: appleboy/ssh-action@v1.2.5
@@ -226,9 +227,10 @@ jobs:
           username: ${{ env.DEPLOY_USER }}
           key: ${{ env.DEPLOY_SSH_KEY }}
           port: ${{ env.DEPLOY_PORT }}
+          envs: DEPLOY_PORT
           script: |
             set -eu
-            ufw delete allow 52222/tcp
+            ufw delete allow "$DEPLOY_PORT/tcp"
 
       - name: Fail job after rollback
         if: steps.health.outcome == 'failure' || steps.egress.outcome == 'failure'

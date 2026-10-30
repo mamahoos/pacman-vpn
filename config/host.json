@@ -48,14 +48,14 @@
     "sni": ["edge.example.com"],
     "host": ["edge.example.com"],
     "path": "/chat/api/v6/xhttp",
-    "alpn": ["http/1.1"],
+    "alpn": ["h2"],
     "security": "tls",
     "fingerprint": "chrome",
     "transport_settings": {
       "xhttp_settings": {
-        "mode": "stream-one",
+        "mode": "packet-up",
         "x_padding_bytes": "100-600",
-        "session_placement": "header",
+        "session_placement": "path",
         "xmux": {
           "maxConcurrency": "16-32",
           "maxConnections": "0",
@@ -78,7 +78,7 @@
     "alpn": ["h2", "http/1.1"],
     "security": "tls",
     "fingerprint": "chrome",
-    "allowinsecure": true,
+    "pinned_peer_cert_sha256": "439877c03fd3308211420dfe2fca1570345f6a2d6eb32f901018f61da72901ad",
     "priority": 5,
     "is_disabled": false
   }

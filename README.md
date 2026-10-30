@@ -21,14 +21,23 @@ Each subscription emits one link per host in the `edge` group:
 |---|---|---|
 | chat WS | `VLESS_WS_CHAT` | WS through CF: `edge…/chat/api/v4/websocket` |
 | fronted WS | `VLESS_WS_CHAT` (2nd host) | clean address (`chatgpt.com`), SNI/Host stay on `edge…` — domain fronting |
-| xhttp | `VLESS_XHTTP` | `stream-one` xhttp through CF: `edge…/chat/api/v6/xhttp` |
+| xhttp | `VLESS_XHTTP` | `packet-up` xhttp over h2 through CF: `edge…/chat/api/v6/xhttp` |
 | TCP+TLS | `VLESS_TCP_TLS` | raw TLS to `files.mamahoos.ir:443`, SNI-routed, no CF in the path |
 
 The legacy `VLESS_WS` link (`edge…/chat/sync`) stays for already-active devices.
 
-Caveats: the TCP+TLS link carries `allowinsecure=1` because the node serves its
-self-signed certificate (`data/pg-node/certs`) — the cert is not verified on that
-direct path. The grey-cloud `files` record exposes the origin IP for that name only.
+Caveats:
+
+- xhttp must be `packet-up` with ALPN `h2`: `stream-one` needs a full-duplex HTTP
+  stream, and both Cloudflare and Traefik's HTTP chain hold the response until the
+  request body completes, which stalls every session. `h2` + finite POST packets
+  survive the chain. `session_placement` must stay `path` (server runs defaults).
+- The TCP+TLS link pins the node's self-signed certificate
+  (`data/pg-node/certs`, `pinned_peer_cert_sha256` → `pcs`/`pinSHA256` params)
+  instead of skipping verification — Xray 26 removed `allowInsecure` and refuses
+  to start a config that carries it, so an `allowinsecure` link would break every
+  modern client. The grey-cloud `files` record exposes the origin IP for that name
+  only.
 
 New share-links come from the panel setting `Subscription.url_prefix`, which must be
 set once to `https://<SUB_DOMAIN>` in panel settings — UI, QR codes and Telegram then

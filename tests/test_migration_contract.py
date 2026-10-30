@@ -177,10 +177,17 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
         self.assertEqual(host["path"], path)
         self.assertEqual(host["security"], "tls")
         self.assertIn("edge.example.com", host["address"])
-        # stream-one mirrors the reference client config; xmux keys use the
-        # panel's serialized aliases so seed upserts stay idempotent
+        # packet-up over h2: the only xhttp combination that survives the
+        # Cloudflare + Traefik HTTP chain (stream-one needs full-duplex, which
+        # both proxies break; h1 request/response half-duplex stalls packet-up).
+        # session placement must stay "path" (server runs defaults).
+        # xmux keys use the panel's serialized aliases so seed upserts stay
+        # idempotent.
+        self.assertEqual(host["alpn"], ["h2"])
         xhttp = host["transport_settings"]["xhttp_settings"]
-        self.assertEqual(xhttp["mode"], "stream-one")
+        self.assertEqual(xhttp["mode"], "packet-up")
+        self.assertEqual(xhttp["session_placement"], "path")
+        self.assertEqual(xhttp["x_padding_bytes"], "100-600")
         self.assertEqual(xhttp["xmux"]["maxConcurrency"], "16-32")
         self.assertEqual(xhttp["xmux"]["hKeepAlivePeriod"], 45)
 
@@ -217,8 +224,15 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
         self.assertEqual(host["sni"], ["files.mamahoos.ir"])
         self.assertEqual(host["port"], 443)
         self.assertEqual(host["security"], "tls")
-        # self-signed node certificate: verification must be skipped client-side
-        self.assertTrue(host["allowinsecure"])
+        # self-signed node certificate: the link pins its SHA-256 instead of
+        # skipping verification. allowInsecure was removed in Xray 26 and a
+        # config carrying it fails to load entirely, so pcs/pinSHA256 is the
+        # only cross-client-safe option for this flavour.
+        self.assertEqual(
+            host["pinned_peer_cert_sha256"],
+            "439877c03fd3308211420dfe2fca1570345f6a2d6eb32f901018f61da72901ad",
+        )
+        self.assertNotIn("allowinsecure", host)
         self.assertNotIn("host", host)
 
         cfg = (ROOT / ".github" / "dns" / "dnsconfig.js").read_text()

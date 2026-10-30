@@ -63,9 +63,18 @@ class SeedPayloadTests(unittest.TestCase):
         tcp = by_remark["edge-tcp ({USERNAME})"]
         self.assertEqual(tcp["address"], ["files.mamahoos.ir"])
         self.assertEqual(tcp["sni"], ["files.mamahoos.ir"])
-        self.assertTrue(tcp["allowinsecure"])
+        # node cert pin travels through fill_hosts untouched (no placeholder)
+        self.assertEqual(
+            tcp["pinned_peer_cert_sha256"],
+            "439877c03fd3308211420dfe2fca1570345f6a2d6eb32f901018f61da72901ad",
+        )
+        self.assertNotIn("allowinsecure", tcp)
         # raw TCP has no Host header
         self.assertNotIn("host", tcp)
+        # packet-up over h2 is required to traverse the CDN HTTP chain
+        xhttp = by_remark["edge-xhttp ({USERNAME})"]
+        self.assertEqual(xhttp["alpn"], ["h2"])
+        self.assertEqual(xhttp["transport_settings"]["xhttp_settings"]["mode"], "packet-up")
         self.assertEqual(by_remark["edge-chat ({USERNAME})"]["alpn"], ["http/1.1"])
         # templates must not be mutated in place
         self.assertEqual(templates[0]["path"], "/chat/sync")

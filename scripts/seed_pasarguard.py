@@ -43,15 +43,53 @@ def fill_xray(config: dict[str, Any], edge_domain: str, edge_port: int, ws_path:
 
 
 def fill_host(host: dict[str, Any], edge_domain: str, ws_path: str) -> dict[str, Any]:
-    filled = json.loads(json.dumps(host))
-    filled["address"] = [edge_domain]
-    filled["sni"] = [edge_domain]
-    filled["host"] = [edge_domain]
-    filled["path"] = ws_path
-    filled["port"] = 443
-    filled["security"] = "tls"
-    filled["fingerprint"] = "chrome"
+    return fill_hosts([host], edge_domain, ws_path, primary_tag=host.get("inbound_tag"))[0]
+
+
+def fill_hosts(
+    templates: list[dict[str, Any]],
+    edge_domain: str,
+    ws_path: str,
+    primary_tag: str | None = None,
+) -> list[dict[str, Any]]:
+    """Fill every host template with the public edge endpoint.
+
+    Only the primary inbound (the one the EDGE_PORT router serves wholesale)
+    takes its path from INBOUND_WS_PATH; secondary inbounds keep the path
+    declared in their template because Traefik routes them by that path.
+    """
+    filled: list[dict[str, Any]] = []
+    for template in templates:
+        host = json.loads(json.dumps(template))
+        host["address"] = [edge_domain]
+        host["sni"] = [edge_domain]
+        host["host"] = [edge_domain]
+        host["port"] = 443
+        host["security"] = "tls"
+        host["fingerprint"] = "chrome"
+        if host.get("inbound_tag") == primary_tag:
+            host["path"] = ws_path
+        filled.append(host)
     return filled
+
+
+def load_hosts(path: Path) -> list[dict[str, Any]]:
+    """Accept a single host object or a list of them."""
+    data = load_json(path)
+    if isinstance(data, dict):
+        return [data]
+    if isinstance(data, list) and data:
+        return data
+    raise SystemExit(f"host template must be an object or a non-empty list: {path}")
+
+
+def merge_inbound_tags(desired: list[str], existing: list[str] | None) -> list[str]:
+    """Union of configured inbound tags and the group's current tags.
+
+    Existing tags are preserved so inbounds owned by other cores (e.g. the
+    Shadowsocks inbound from the default core) never fall out of the group.
+    """
+    return list(dict.fromkeys([*(existing or []), *desired]))
 
 
 def normalize_username(email: str) -> str:
@@ -163,7 +201,8 @@ def seed(panel: Panel) -> None:
     node_ca_path = Path(os.environ.get("NODE_CA_FILE", "/node-certs/ssl_cert.pem"))
 
     xray = fill_xray(load_json(xray_path), edge_domain, edge_port, ws_path)
-    host = fill_host(load_json(host_path), edge_domain, ws_path)
+    primary_tag = (xray.get("inbounds") or [{}])[0].get("tag")
+    desired_hosts = fill_hosts(load_hosts(host_path), edge_domain, ws_path, primary_tag)
     clients = load_json(clients_path)
     if not isinstance(clients, list) or not clients:
         raise SystemExit("clients file must be a non-empty list")
@@ -182,20 +221,46 @@ def seed(panel: Panel) -> None:
         else:
             print("core up to date id=", core_id)
 
+    inbound_tags = [
+        item.get("tag") for item in xray.get("inbounds") or [] if item.get("tag")
+    ]
     groups = (panel.api("GET", "/api/groups") or {}).get("groups") or []
     group = find_named(groups, "edge")
     if group is None:
-        group = panel.api("POST", "/api/group", {"name": "edge", "inbound_tags": ["VLESS_WS"]})
+        group = panel.api("POST", "/api/group", {"name": "edge", "inbound_tags": inbound_tags})
         print("created group id=", group.get("id"))
+    else:
+        merged = merge_inbound_tags(inbound_tags, group.get("inbound_tags"))
+        if merged != (group.get("inbound_tags") or []):
+            panel.api(
+                "PUT",
+                f"/api/group/{group['id']}",
+                {
+                    "name": group["name"],
+                    "inbound_tags": merged,
+                    "is_disabled": group.get("is_disabled", False),
+                },
+            )
+            print("updated group inbound_tags id=", group.get("id"), merged)
     group_id = int(group["id"])
 
     hosts = panel.api("GET", "/api/hosts") or []
-    existing_host = next((item for item in hosts if item.get("inbound_tag") == "VLESS_WS"), None)
-    if existing_host is None:
-        created_host = panel.api("POST", "/api/host/", host)
-        print("created host id=", created_host.get("id"))
-    else:
-        print("host exists id=", existing_host.get("id"))
+    for host in desired_hosts:
+        existing_host = next(
+            (item for item in hosts if item.get("inbound_tag") == host.get("inbound_tag")),
+            None,
+        )
+        if existing_host is None:
+            created_host = panel.api("POST", "/api/host/", host)
+            print("created host id=", created_host.get("id"))
+        else:
+            desired = {k: v for k, v in host.items() if v is not None}
+            current = {k: existing_host.get(k) for k in desired}
+            if desired != current:
+                panel.api("PUT", f"/api/host/{existing_host['id']}", host)
+                print("updated host id=", existing_host.get("id"))
+            else:
+                print("host exists id=", existing_host.get("id"))
 
     if not node_ca_path.is_file():
         raise SystemExit(f"missing node cert {node_ca_path}")

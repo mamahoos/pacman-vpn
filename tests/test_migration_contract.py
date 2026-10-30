@@ -93,13 +93,50 @@ class PasarGuardMigrationContractTests(unittest.TestCase):
         )
 
     def test_host_link_uses_edge_tls_on_443(self):
-        host = json.loads((ROOT / "config" / "host.json").read_text())
+        hosts = json.loads((ROOT / "config" / "host.json").read_text())
+        self.assertIsInstance(hosts, list)
+        self.assertEqual(len(hosts), 2)
+        host = next(h for h in hosts if h["inbound_tag"] == "VLESS_WS")
         self.assertIn("edge.example.com", host["address"])
         self.assertEqual(host["port"], 443)
         self.assertEqual(host["security"], "tls")
         self.assertEqual(host["fingerprint"], "chrome")
         self.assertEqual(host["path"], "/chat/sync")
-        self.assertEqual(host["inbound_tag"], "VLESS_WS")
+
+    def test_chat_inbound_is_routed_and_seeded_consistently(self):
+        """The secondary inbound must agree on tag/port/path in all three files."""
+        config = json.loads((ROOT / "config" / "xray.json").read_text())
+        inbound = next(
+            (i for i in config["inbounds"] if i["tag"] == "VLESS_WS_CHAT"), None
+        )
+        self.assertIsNotNone(inbound, "VLESS_WS_CHAT inbound missing")
+        self.assertEqual(inbound["protocol"], "vless")
+        self.assertEqual(inbound["streamSettings"]["network"], "ws")
+        self.assertEqual(inbound["streamSettings"]["security"], "none")
+        path = inbound["streamSettings"]["wsSettings"]["path"]
+        self.assertEqual(path, "/chat/api/v4/websocket")
+        self.assertNotEqual(inbound["port"], config["inbounds"][0]["port"])
+
+        compose = (ROOT / "compose.yaml").read_text()
+        self.assertIn(
+            "traefik.http.routers.edge-chat.rule=Host(`${EDGE_DOMAIN}`) && "
+            f"PathPrefix(`{path}`)",
+            compose,
+        )
+        self.assertIn("traefik.http.routers.edge-chat.tls=true", compose)
+        self.assertIn(
+            "traefik.http.services.edge-chat-svc.loadbalancer.server.port="
+            f"{inbound['port']}",
+            compose,
+        )
+        # priority beats the host-only edge router regardless of rule length
+        self.assertIn("traefik.http.routers.edge-chat.priority=", compose)
+
+        hosts = json.loads((ROOT / "config" / "host.json").read_text())
+        chat_host = next(h for h in hosts if h["inbound_tag"] == "VLESS_WS_CHAT")
+        self.assertEqual(chat_host["path"], path)
+        self.assertEqual(chat_host["security"], "tls")
+        self.assertIn("http/1.1", chat_host.get("alpn", []))
 
 
 if __name__ == "__main__":

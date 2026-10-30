@@ -27,6 +27,31 @@
         "destOverride": ["http", "tls"],
         "routeOnly": false
       }
+    },
+    {
+      "tag": "VLESS_WS_CHAT",
+      "listen": "0.0.0.0",
+      "port": 10087,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "none",
+        "wsSettings": {
+          "acceptProxyProtocol": false,
+          "path": "/chat/api/v4/websocket",
+          "host": "",
+          "headers": {}
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls"],
+        "routeOnly": false
+      }
     }
   ],
   "outbounds": [

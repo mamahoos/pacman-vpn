@@ -26,13 +26,68 @@ class SeedPayloadTests(unittest.TestCase):
         self.assertEqual(inbound["port"], 10086)
 
     def test_fill_host_uses_public_tls_edge(self):
-        template = json.loads((ROOT / "config" / "host.json").read_text())
+        template = json.loads((ROOT / "config" / "host.json").read_text())[0]
         filled = seed.fill_host(template, "edge.example.com", "/chat/sync")
         self.assertEqual(filled["address"], ["edge.example.com"])
         self.assertEqual(filled["sni"], ["edge.example.com"])
         self.assertEqual(filled["port"], 443)
         self.assertEqual(filled["security"], "tls")
         self.assertEqual(filled["fingerprint"], "chrome")
+
+    def test_fill_hosts_keeps_secondary_paths(self):
+        templates = json.loads((ROOT / "config" / "host.json").read_text())
+        filled = seed.fill_hosts(templates, "edge.example.com", "/chat/sync", "VLESS_WS")
+        self.assertEqual(len(filled), len(templates))
+        by_tag = {item["inbound_tag"]: item for item in filled}
+        # primary inbound follows INBOUND_WS_PATH, secondary keeps its own path
+        self.assertEqual(by_tag["VLESS_WS"]["path"], "/chat/sync")
+        self.assertEqual(
+            by_tag["VLESS_WS_CHAT"]["path"], "/chat/api/v4/websocket"
+        )
+        for item in filled:
+            self.assertEqual(item["address"], ["edge.example.com"])
+            self.assertEqual(item["port"], 443)
+            self.assertEqual(item["security"], "tls")
+        self.assertEqual(by_tag["VLESS_WS_CHAT"]["alpn"], ["http/1.1"])
+        # templates must not be mutated in place
+        self.assertEqual(templates[0]["path"], "/chat/sync")
+        self.assertEqual(templates[1]["path"], "/chat/api/v4/websocket")
+
+    def test_load_hosts_accepts_single_object_and_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            single = Path(tmp) / "single.json"
+            single.write_text(json.dumps({"remark": "one", "inbound_tag": "A"}))
+            self.assertEqual(seed.load_hosts(single)[0]["inbound_tag"], "A")
+
+            many = Path(tmp) / "many.json"
+            many.write_text(
+                json.dumps(
+                    [
+                        {"remark": "one", "inbound_tag": "A"},
+                        {"remark": "two", "inbound_tag": "B"},
+                    ]
+                )
+            )
+            self.assertEqual([h["inbound_tag"] for h in seed.load_hosts(many)], ["A", "B"])
+
+            empty = Path(tmp) / "empty.json"
+            empty.write_text("[]")
+            with self.assertRaises(SystemExit):
+                seed.load_hosts(empty)
+
+    def test_merge_inbound_tags_preserves_foreign_tags(self):
+        self.assertEqual(
+            seed.merge_inbound_tags(["VLESS_WS", "VLESS_WS_CHAT"], ["Shadowsocks TCP"]),
+            ["Shadowsocks TCP", "VLESS_WS", "VLESS_WS_CHAT"],
+        )
+        self.assertEqual(
+            seed.merge_inbound_tags(["VLESS_WS"], None), ["VLESS_WS"]
+        )
+        # idempotent: no duplicates when already present
+        self.assertEqual(
+            seed.merge_inbound_tags(["VLESS_WS"], ["VLESS_WS"]),
+            ["VLESS_WS"],
+        )
 
     def test_core_needs_update_only_on_config_drift(self):
         desired = {"inbounds": [{"tag": "VLESS_WS"}], "outbounds": [{"tag": "DIRECT"}]}

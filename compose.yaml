@@ -87,6 +87,14 @@ services:
       - "traefik.http.routers.edge.tls=true"
       - "traefik.http.routers.edge.service=edge-svc"
       - "traefik.http.services.edge-svc.loadbalancer.server.port=${EDGE_PORT}"
+      # Secondary inbound (VLESS_WS_CHAT): the path-specific rule wins over the
+      # host-only router above because it carries an explicit priority.
+      - "traefik.http.routers.edge-chat.rule=Host(`${EDGE_DOMAIN}`) && PathPrefix(`/chat/api/v4/websocket`)"
+      - "traefik.http.routers.edge-chat.entrypoints=websecure"
+      - "traefik.http.routers.edge-chat.tls=true"
+      - "traefik.http.routers.edge-chat.priority=100"
+      - "traefik.http.routers.edge-chat.service=edge-chat-svc"
+      - "traefik.http.services.edge-chat-svc.loadbalancer.server.port=10087"
     logging:
       driver: json-file
       options:

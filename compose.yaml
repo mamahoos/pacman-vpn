@@ -95,6 +95,23 @@ services:
       - "traefik.http.routers.edge-chat.priority=100"
       - "traefik.http.routers.edge-chat.service=edge-chat-svc"
       - "traefik.http.services.edge-chat-svc.loadbalancer.server.port=10087"
+      # xhttp inbound (VLESS_XHTTP): same CF-fronted host, distinct path priority.
+      - "traefik.http.routers.edge-xhttp.rule=Host(`${EDGE_DOMAIN}`) && PathPrefix(`/chat/api/v6/xhttp`)"
+      - "traefik.http.routers.edge-xhttp.entrypoints=websecure"
+      - "traefik.http.routers.edge-xhttp.tls=true"
+      - "traefik.http.routers.edge-xhttp.priority=100"
+      - "traefik.http.routers.edge-xhttp.service=edge-xhttp-svc"
+      - "traefik.http.services.edge-xhttp-svc.loadbalancer.server.port=10089"
+      # TCP+TLS inbound (VLESS_TCP_TLS): raw TLS routed by SNI on the same
+      # entrypoint. tls.passthrough keeps xray terminating TLS with the node
+      # certificate; the client connects straight to the origin through the
+      # DNS-only files.mamahoos.ir record, so Cloudflare never sees this
+      # traffic. Non-matching SNIs keep falling through to the HTTP routers.
+      - "traefik.tcp.routers.edge-tcp.rule=HostSNI(`files.mamahoos.ir`)"
+      - "traefik.tcp.routers.edge-tcp.entrypoints=websecure"
+      - "traefik.tcp.routers.edge-tcp.tls.passthrough=true"
+      - "traefik.tcp.routers.edge-tcp.service=edge-tcp-svc"
+      - "traefik.tcp.services.edge-tcp-svc.loadbalancer.server.port=10088"
     logging:
       driver: json-file
       options:

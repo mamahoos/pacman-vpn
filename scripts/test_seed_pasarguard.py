@@ -36,22 +36,60 @@ class SeedPayloadTests(unittest.TestCase):
 
     def test_fill_hosts_keeps_secondary_paths(self):
         templates = json.loads((ROOT / "config" / "host.json").read_text())
-        filled = seed.fill_hosts(templates, "edge.example.com", "/chat/sync", "VLESS_WS")
+        filled = seed.fill_hosts(templates, "edge.filled.example", "/chat/sync", "VLESS_WS")
         self.assertEqual(len(filled), len(templates))
-        by_tag = {item["inbound_tag"]: item for item in filled}
+        by_remark = {item["remark"]: item for item in filled}
         # primary inbound follows INBOUND_WS_PATH, secondary keeps its own path
-        self.assertEqual(by_tag["VLESS_WS"]["path"], "/chat/sync")
+        self.assertEqual(by_remark["edge ({USERNAME})"]["path"], "/chat/sync")
         self.assertEqual(
-            by_tag["VLESS_WS_CHAT"]["path"], "/chat/api/v4/websocket"
+            by_remark["edge-chat ({USERNAME})"]["path"], "/chat/api/v4/websocket"
         )
-        for item in filled:
-            self.assertEqual(item["address"], ["edge.example.com"])
-            self.assertEqual(item["port"], 443)
-            self.assertEqual(item["security"], "tls")
-        self.assertEqual(by_tag["VLESS_WS_CHAT"]["alpn"], ["http/1.1"])
+        # placeholder entries resolve to the live edge domain
+        for remark in (
+            "edge ({USERNAME})",
+            "edge-chat ({USERNAME})",
+            "edge-xhttp ({USERNAME})",
+        ):
+            self.assertEqual(by_remark[remark]["address"], ["edge.filled.example"])
+            self.assertEqual(by_remark[remark]["sni"], ["edge.filled.example"])
+            self.assertEqual(by_remark[remark]["port"], 443)
+            self.assertEqual(by_remark[remark]["security"], "tls")
+            self.assertEqual(by_remark[remark]["fingerprint"], "chrome")
+        # explicit addresses survive: domain fronting and the TCP passthrough
+        front = by_remark["edge-front ({USERNAME})"]
+        self.assertEqual(front["address"], ["chatgpt.com"])
+        self.assertEqual(front["sni"], ["edge.filled.example"])
+        self.assertEqual(front["path"], "/chat/api/v4/websocket")
+        tcp = by_remark["edge-tcp ({USERNAME})"]
+        self.assertEqual(tcp["address"], ["files.mamahoos.ir"])
+        self.assertEqual(tcp["sni"], ["files.mamahoos.ir"])
+        self.assertTrue(tcp["allowinsecure"])
+        # raw TCP has no Host header
+        self.assertNotIn("host", tcp)
+        self.assertEqual(by_remark["edge-chat ({USERNAME})"]["alpn"], ["http/1.1"])
         # templates must not be mutated in place
         self.assertEqual(templates[0]["path"], "/chat/sync")
         self.assertEqual(templates[1]["path"], "/chat/api/v4/websocket")
+
+    def test_host_key_separates_flavours_sharing_an_inbound(self):
+        direct = {
+            "inbound_tag": "VLESS_WS_CHAT",
+            "path": "/chat/api/v4/websocket",
+            "address": ["edge.mamahoos.ir"],
+        }
+        fronted = {**direct, "address": ["chatgpt.com"]}
+        self.assertNotEqual(seed.host_key(direct), seed.host_key(fronted))
+        # same row still matches when the API returns a different list order
+        self.assertEqual(
+            seed.host_key(direct), seed.host_key({**direct, "address": ["edge.mamahoos.ir"]})
+        )
+        # str address (defensive) and missing path normalize too
+        self.assertEqual(
+            seed.host_key({**direct, "address": "edge.mamahoos.ir", "path": None}),
+            ("VLESS_WS_CHAT", "", "edge.mamahoos.ir"),
+        )
+        tcp = {"inbound_tag": "VLESS_TCP_TLS", "address": ["files.mamahoos.ir"]}
+        self.assertEqual(seed.host_key(tcp), ("VLESS_TCP_TLS", "", "files.mamahoos.ir"))
 
     def test_load_hosts_accepts_single_object_and_list(self):
         with tempfile.TemporaryDirectory() as tmp:

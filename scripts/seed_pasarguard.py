@@ -46,6 +46,23 @@ def fill_host(host: dict[str, Any], edge_domain: str, ws_path: str) -> dict[str,
     return fill_hosts([host], edge_domain, ws_path, primary_tag=host.get("inbound_tag"))[0]
 
 
+# The committed templates carry this placeholder; anything else in
+# address/sni/host is a deliberate value (domain fronting, the TCP
+# passthrough record) and must survive seeding untouched.
+PLACEHOLDER_DOMAIN = "edge.example.com"
+
+
+def fill_domain(current: Any, edge_domain: str) -> list[str]:
+    """Resolve a template domain list against the live edge domain.
+
+    Empty entries and the ``edge.example.com`` placeholder become
+    ``edge_domain``; explicit entries stay verbatim.
+    """
+    if not isinstance(current, list) or not current:
+        return [edge_domain]
+    return [edge_domain if value == PLACEHOLDER_DOMAIN else value for value in current]
+
+
 def fill_hosts(
     templates: list[dict[str, Any]],
     edge_domain: str,
@@ -57,13 +74,18 @@ def fill_hosts(
     Only the primary inbound (the one the EDGE_PORT router serves wholesale)
     takes its path from INBOUND_WS_PATH; secondary inbounds keep the path
     declared in their template because Traefik routes them by that path.
+    address/sni/host are only rewritten where the template still carries the
+    placeholder, so fronting (chatgpt.com) and passthrough (files.mamahoos.ir)
+    hosts keep their explicit names. host stays absent when the template
+    omits it: raw TCP has no Host header.
     """
     filled: list[dict[str, Any]] = []
     for template in templates:
         host = json.loads(json.dumps(template))
-        host["address"] = [edge_domain]
-        host["sni"] = [edge_domain]
-        host["host"] = [edge_domain]
+        host["address"] = fill_domain(host.get("address"), edge_domain)
+        host["sni"] = fill_domain(host.get("sni"), edge_domain)
+        if "host" in host:
+            host["host"] = fill_domain(host["host"], edge_domain)
         host["port"] = 443
         host["security"] = "tls"
         host["fingerprint"] = "chrome"
@@ -182,6 +204,22 @@ def core_needs_update(existing: dict[str, Any], desired: dict[str, Any]) -> bool
     return existing.get("config") != desired
 
 
+def host_key(item: dict[str, Any]) -> tuple[str, str, str]:
+    """Identity of a host row for upserting.
+
+    The WS inbound serves two flavours (direct edge and domain-fronted), so
+    the inbound tag alone is not unique: path and address separate them.
+    """
+    address = item.get("address") or []
+    if isinstance(address, str):
+        address = [address]
+    return (
+        str(item.get("inbound_tag") or ""),
+        str(item.get("path") or ""),
+        ",".join(sorted(str(value) for value in address)),
+    )
+
+
 def find_named(items: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
     for item in items:
         if item.get("name") == name:
@@ -247,7 +285,7 @@ def seed(panel: Panel) -> None:
     hosts = panel.api("GET", "/api/hosts") or []
     for host in desired_hosts:
         existing_host = next(
-            (item for item in hosts if item.get("inbound_tag") == host.get("inbound_tag")),
+            (item for item in hosts if host_key(item) == host_key(host)),
             None,
         )
         if existing_host is None:

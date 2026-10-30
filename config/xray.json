@@ -52,6 +52,65 @@
         "destOverride": ["http", "tls"],
         "routeOnly": false
       }
+    },
+    {
+      "tag": "VLESS_XHTTP",
+      "listen": "0.0.0.0",
+      "port": 10089,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "none",
+        "xhttpSettings": {
+          "path": "/chat/api/v6/xhttp",
+          "mode": "auto"
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls"],
+        "routeOnly": false
+      }
+    },
+    {
+      "tag": "VLESS_TCP_TLS",
+      "listen": "0.0.0.0",
+      "port": 10088,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tlsSettings": {
+          "serverName": "",
+          "alpn": ["h2", "http/1.1"],
+          "certificates": [
+            {
+              "certificateFile": "/var/lib/pg-node/certs/ssl_cert.pem",
+              "keyFile": "/var/lib/pg-node/certs/ssl_key.pem",
+              "serveOnNode": true
+            }
+          ]
+        },
+        "tcpSettings": {
+          "acceptProxyProtocol": false,
+          "header": {
+            "type": "none"
+          }
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls"],
+        "routeOnly": false
+      }
     }
   ],
   "outbounds": [

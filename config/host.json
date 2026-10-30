@@ -25,5 +25,61 @@
     "fingerprint": "chrome",
     "priority": 2,
     "is_disabled": false
+  },
+  {
+    "remark": "edge-front ({USERNAME})",
+    "address": ["chatgpt.com"],
+    "inbound_tag": "VLESS_WS_CHAT",
+    "port": 443,
+    "sni": ["edge.example.com"],
+    "host": ["edge.example.com"],
+    "path": "/chat/api/v4/websocket",
+    "alpn": ["http/1.1"],
+    "security": "tls",
+    "fingerprint": "chrome",
+    "priority": 3,
+    "is_disabled": false
+  },
+  {
+    "remark": "edge-xhttp ({USERNAME})",
+    "address": ["edge.example.com"],
+    "inbound_tag": "VLESS_XHTTP",
+    "port": 443,
+    "sni": ["edge.example.com"],
+    "host": ["edge.example.com"],
+    "path": "/chat/api/v6/xhttp",
+    "alpn": ["http/1.1"],
+    "security": "tls",
+    "fingerprint": "chrome",
+    "transport_settings": {
+      "xhttp_settings": {
+        "mode": "stream-one",
+        "x_padding_bytes": "100-600",
+        "session_placement": "header",
+        "xmux": {
+          "maxConcurrency": "16-32",
+          "maxConnections": "0",
+          "cMaxReuseTimes": "0",
+          "hMaxReusableSecs": "1800-3000",
+          "hMaxRequestTimes": "750-900",
+          "hKeepAlivePeriod": 45
+        }
+      }
+    },
+    "priority": 4,
+    "is_disabled": false
+  },
+  {
+    "remark": "edge-tcp ({USERNAME})",
+    "address": ["files.mamahoos.ir"],
+    "inbound_tag": "VLESS_TCP_TLS",
+    "port": 443,
+    "sni": ["files.mamahoos.ir"],
+    "alpn": ["h2", "http/1.1"],
+    "security": "tls",
+    "fingerprint": "chrome",
+    "allowinsecure": true,
+    "priority": 5,
+    "is_disabled": false
   }
 ]

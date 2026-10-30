@@ -9,8 +9,26 @@ Production is deployed via GitHub Actions CI/CD.
 | Host | Env | Serves |
 |---|---|---|
 | `sub.example.com` | `SUB_DOMAIN` | subscriptions only — `https://…/sub/<token>`; any other path 404s |
-| `edge.example.com` | `EDGE_DOMAIN` | tunnel inbound (xray WS `/chat/sync`) — client configs unchanged |
+| `edge.example.com` | `EDGE_DOMAIN` | tunnel inbounds over CF — legacy WS `/chat/sync`, WS `/chat/api/v4/websocket`, xhttp `/chat/api/v6/xhttp` |
 | `xui-admin.example.com` | `XUI_DOMAIN` | admin console + `/api` + `/statics` — `/sub` is **not** served here |
+| `files.mamahoos.ir` | — (fixed name) | TCP+TLS inbound — **grey-cloud on purpose**: the client dials the origin directly, Traefik routes by SNI; Cloudflare's HTTP proxy cannot carry raw TLS |
+
+## Subscription flavours
+
+Each subscription emits one link per host in the `edge` group:
+
+| Flavour | Inbound | How it connects |
+|---|---|---|
+| chat WS | `VLESS_WS_CHAT` | WS through CF: `edge…/chat/api/v4/websocket` |
+| fronted WS | `VLESS_WS_CHAT` (2nd host) | clean address (`chatgpt.com`), SNI/Host stay on `edge…` — domain fronting |
+| xhttp | `VLESS_XHTTP` | `stream-one` xhttp through CF: `edge…/chat/api/v6/xhttp` |
+| TCP+TLS | `VLESS_TCP_TLS` | raw TLS to `files.mamahoos.ir:443`, SNI-routed, no CF in the path |
+
+The legacy `VLESS_WS` link (`edge…/chat/sync`) stays for already-active devices.
+
+Caveats: the TCP+TLS link carries `allowinsecure=1` because the node serves its
+self-signed certificate (`data/pg-node/certs`) — the cert is not verified on that
+direct path. The grey-cloud `files` record exposes the origin IP for that name only.
 
 New share-links come from the panel setting `Subscription.url_prefix`, which must be
 set once to `https://<SUB_DOMAIN>` in panel settings — UI, QR codes and Telegram then
@@ -27,7 +45,7 @@ exists.
 | **CI** | push/PR to `main` | Python tests, `docker compose config` render check |
 | **Secret Scan** | push/PR to `main` | Gitleaks secret scan |
 | **Cloudflare** | push/PR, daily cron | DNS, SSL mode, public edge smoke test |
-| **DNS sync** | push (dns files), manual | dnscontrol creates/updates the `admin`/`sub`/`edge` A records (origin IP resolved over SSH) |
+| **DNS sync** | push (dns files), manual | dnscontrol creates/updates the `admin`/`sub`/`edge`/`files` A records (origin IP resolved over SSH) |
 | **CD** | manual (`workflow_dispatch`) | SSH deploy to production (`scope=panel` default) |
 
 **CD flow:** backup remote stack → copy `compose.yaml` + config/scripts → deploy by `scope` → Cloudflare health check → rollback from `.deploy-backup` on failure.
